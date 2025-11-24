@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinical Mental Health Assistant</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <h1>🧠 Clinical Mental Health Assistant</h1>
+      <p class="subtitle">AI-Powered Diagnostic Support Tool for Healthcare Professionals</p>
+      <p class="for-professionals">For Psychologists & Mental Health Professionals</p>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Left Panel: Chat Interface -->
+      <div class="chat-panel">
+        <div class="chat-header">
+          <h2>Clinical Analysis Assistant</h2>
+          <button id="clearBtn" class="btn-clear">🔄 New Case</button>
+        </div>
+        
+        <!-- Chat Messages -->
+        <div id="chatMessages" class="chat-messages">
+          <div class="welcome-message">
+            <p><strong>👨‍⚕️ Welcome to the Clinical Mental Health Assistant</strong></p>
+            <p>Enter patient clinical observations or case descriptions to receive:</p>
+            <ul>
+              <li>🔍 Automated condition classification</li>
+              <li>📋 Clinical summary extraction</li>
+              <li>💊 Evidence-based treatment recommendations</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+          <textarea 
+            id="caseText" 
+            rows="3"
+            placeholder="Enter patient clinical observations, symptoms, or case notes... (minimum 50 characters)"
+          ></textarea>
+          <button id="analyzeBtn" class="btn-primary">Analyze Case 🔬</button>
+        </div>
+
+        <!-- Example Cases -->
+        <div class="examples">
+          <p class="examples-title">💡 Example clinical cases:</p>
+          <button class="example-btn" data-example="depression">Depression Case</button>
+          <button class="example-btn" data-example="anxiety">Anxiety Case</button>
+          <button class="example-btn" data-example="bipolar">Bipolar Case</button>
+        </div>
+      </div>
+
+      <!-- Right Panel: Settings -->
+      <div class="settings-panel">
+        <h3>⚙️ Clinical Settings</h3>
+        
+        <div class="setting-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="autoClassify" checked />
+            <span>🤖 Automatic Classification</span>
+          </label>
+          <p class="setting-info">AI will identify the condition automatically</p>
+        </div>
+
+        <div class="setting-group" id="manualPathologyGroup" style="display: none;">
+          <label>Manual Diagnosis Selection</label>
+          <select id="pathology" class="select-pathology">
+            <option value="Depression">Depression</option>
+            <option value="Anxiety">Anxiety</option>
+            <option value="Bipolar Disorder">Bipolar Disorder</option>
+            <option value="BPD">BPD</option>
+            <option value="Schizophrenia">Schizophrenia</option>
+          </select>
+          <p class="setting-info">Select if auto-classify is disabled</p>
+        </div>
+
+        <hr class="divider" />
+
+        <div class="info-section">
+          <h4>ℹ️ System Information</h4>
+          <p><strong>AI Pipeline:</strong></p>
+          <ol class="pipeline-steps">
+            <li><strong>Classifier Model</strong> - Identifies primary diagnosis</li>
+            <li><strong>T5 Summarizer</strong> - Extracts clinical summary</li>
+            <li><strong>Llama 3 Generator</strong> - Formulates treatment plan</li>
+          </ol>
+          
+          <div class="disclaimer">
+            <p><strong>For Professional Use Only</strong></p>
+            <p>This tool provides diagnostic support and treatment suggestions based on AI analysis. Clinical judgment and professional expertise should always guide final treatment decisions.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden example texts -->
+  <div id="exampleTexts" style="display: none;">
+    <div data-example="depression">
+I've been feeling extremely sad and hopeless for the past 3 months. I've lost interest in all my hobbies and can barely get out of bed. I'm sleeping 12+ hours a day but still feel exhausted. My appetite is gone, and I've lost 15 pounds without trying. I feel like a burden to everyone and sometimes think about not being here anymore. I can't concentrate at work and have been missing deadlines. Everything feels heavy and meaningless.
+    </div>
+    <div data-example="anxiety">
+Patient reports experiencing intense episodes of fear and panic that come on suddenly without warning. During these episodes, they experience rapid heartbeat, sweating, trembling, shortness of breath, and a sense of impending doom. These episodes last 10-20 minutes and have been occurring 2-3 times per week for the past 2 months. Patient has begun avoiding situations where they previously experienced panic attacks, including public transportation and crowded places. Reports constant worry about when the next episode will occur.
+    </div>
+    <div data-example="bipolar">
+Patient presents with a history of distinct mood episodes. During manic phases, reports decreased need for sleep (3-4 hours), racing thoughts, excessive talking, increased goal-directed activity, and engagement in risky behaviors including impulsive spending and reckless driving. These episodes last 1-2 weeks and are followed by severe depressive episodes characterized by low energy, feelings of worthlessness, and suicidal ideation. Family history positive for bipolar disorder. Currently in a hypomanic state with elevated mood and increased productivity.
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

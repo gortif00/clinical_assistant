@@ -1,0 +1,353 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "gpuType": "T4"
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    },
+    "accelerator": "GPU"
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "mawQ7A90cinh"
+      },
+      "outputs": [],
+      "source": [
+        "# =================================================================================\n",
+        "#\n",
+        "#  Practice Notebook | Lab 11: Prompt Engineering and Generation with LLMs\n",
+        "#  Subject: Natural Language Processing\n",
+        "#  Professor: José Alberto Benítez\n",
+        "#\n",
+        "# =================================================================================\n",
+        "\n",
+        "# @title # 0. Introduction and Objectives\n",
+        "#\n",
+        "# **Welcome to Lab 11!**\n",
+        "#\n",
+        "# Today we will become \"AI whisperers\". We are not going to train a model, but rather learn the art of giving it instructions so that it does exactly what we want. This is **Prompt Engineering**.\n",
+        "#\n",
+        "# **Objective:**\n",
+        "# Master the techniques to control the output of an LLM. We will learn to be specific, to give it examples, and to adjust the \"dials\" of its creativity to obtain precise, creative, or structured responses according to our needs.\n",
+        "#\n",
+        "# **Tools we will use:**\n",
+        "# - **Hugging Face `transformers`:** to use a generative model through the `text-generation` pipeline.\n",
+        "# - **A pre-trained model:** we will use `Qwen/Qwen2.5-1.5B-Instruct`, ideal for running quick experiments in Colab.\n",
+        "#\n",
+        "# ---\n",
+        "# **Make sure you have a runtime environment with GPU enabled!**\n",
+        "# *Go to `Runtime` > `Change runtime type` and select `T4 GPU`.*\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# @title # 1. Installation and Pipeline Loading\n",
+        "#\n",
+        "# The first step is to install `transformers` and load the `text-generation` pipeline.\n",
+        "# This pipeline greatly simplifies the process of passing a prompt to a model and getting a response.\n",
+        "\n",
+        "!pip install transformers accelerate -q\n",
+        "\n",
+        "from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, pipeline, set_seed\n",
+        "import torch, re\n",
+        "\n",
+        "set_seed(42)\n",
+        "\n",
+        "...\n",
+        "tokenizer = AutoTokenizer.from_pretrained(..., use_fast=...)\n",
+        "model = AutoModelForCausalLM.from_pretrained(\n",
+        "    ...,\n",
+        "    torch_dtype=torch.float16,   # usa bfloat16 si tu GPU lo admite\n",
+        "    device_map=\"auto\"\n",
+        ")\n",
+        "\n",
+        "\n",
+        "# We load the pipeline with a generative model.\n",
+        "# We use Qwen/Qwen2.5-1.5B-Instruct because it is fast for our experiments.\n",
+        "text_generator = ...\n"
+      ],
+      "metadata": {
+        "id": "9Te5dBKpcuRl"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# @title # 2. Experiment 1: Basic Generation\n",
+        "#\n",
+        "# Let's start with the simplest thing: giving a prompt to the model and seeing what it generates.\n",
+        "# The `max_new_tokens` parameter is crucial to control the length of the response and prevent the model from writing indefinitely.\n",
+        "\n",
+        "prompt_basico = \"In a world where cats can talk,\"\n",
+        "\n",
+        "print(f\"PROMPT: {prompt_basico}\\n---\")\n",
+        "\n",
+        "# We generate the response\n",
+        "result = ...\n",
+        "\n",
+        "print(result[0]['generated_text'])\n",
+        "\n"
+      ],
+      "metadata": {
+        "id": "2H9SjVmZc-0B",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "outputId": "6a8e6f2a-5890-4e02-8de1-869514ac7faf"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "PROMPT: In a world where cats can talk,\n",
+            "---\n",
+            "In a world where cats can talk, they have been known to communicate with humans in various ways. Some of them use their bodies and tail movements to convey emotions or intentions, while others speak using complex vocalizations.\n",
+            "One cat that has gained popularity for its ability to communicate effectively with humans is\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# @title # 3. Experiment 2: The Creativity Thermostat (`temperature`)\n",
+        "#\n",
+        "# The `temperature` is one of the most important parameters. It controls the randomness of the response.\n",
+        "# - **Low `temperature` (e.g., 0.2):** The model is very conservative, predictable, and tends to repeat what it already knows.\n",
+        "# - **High `temperature` (e.g., 1.0 or more):** The model is very creative, risky, and sometimes... incoherent.\n",
+        "# Use 30 for the max number of tokens.\n",
+        "# It's necessary to activate do_sample for temperature to have an effect.\n",
+        "\n",
+        "\n",
+        "prompt_creatividad = \"The secret to happiness is\"\n",
+        "\n",
+        "# CONSERVATIVE Generation (low temperature)\n",
+        "print(\"--- CONSERVATIVE GENERATION (temperature=0.2) ---\")\n",
+        "result_conservador = ...\n",
+        "print(result_conservador[0]['generated_text'])\n",
+        "\n",
+        "\n",
+        "# CREATIVE Generation (high temperature)\n",
+        "print(\"\\n--- CREATIVE GENERATION (temperature=1.0) ---\")\n",
+        "result_creativo = ...\n",
+        "print(result_creativo[0]['generated_text'])"
+      ],
+      "metadata": {
+        "id": "KjRyuC4YdIbY"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# @title # 4. Experiment 3: The Power of Examples (Zero-shot vs. Few-shot)\n",
+        "#\n",
+        "# This is one of the most powerful techniques.\n",
+        "# - **Zero-shot:** You ask the model to do something directly, without examples.\n",
+        "# - **Few-shot:** You give it 2 or 3 examples of the solved task in the prompt for it to learn the pattern.\n",
+        "# Use 5 for the max number of tokens.\n",
+        "\n",
+        "# --- ZERO-SHOT Attempt ---\n",
+        "# We ask it to classify a tweet without giving it examples.\n",
+        "prompt_zero_shot = \"\"\"\n",
+        "Classify the sentiment of the following tweet as \"Positive\", \"Negative\", or \"Neutral\".\n",
+        "\n",
+        "Tweet: \"I'm not sure if I like the new update, it has some good and some bad things.\"\n",
+        "Sentiment:\n",
+        "\"\"\"\n",
+        "print(\"--- ZERO-SHOT PREDICTION ---\")\n",
+        "resultado_zero = ...\n",
+        "print(resultado_zero[0]['generated_text'])\n",
+        "\n",
+        "\n",
+        "# --- FEW-SHOT Attempt ---\n",
+        "# Now we give it examples to learn the format and the task.\n",
+        "prompt_few_shot = \"\"\"\n",
+        "Classify the sentiment of the following tweets as \"Positive\", \"Negative\", or \"Neutral\".\n",
+        "\n",
+        "Tweet: \"I love the new design! It's so intuitive.\"\n",
+        "Sentiment: Positive\n",
+        "\n",
+        "Tweet: \"Ii is amazing the new design!\"\n",
+        "Sentiment: Positive\n",
+        "\n",
+        "Tweet: \"This is the worst app I have ever used.\"\n",
+        "Sentiment: Negative\n",
+        "\n",
+        "Tweet: \"The conference will take place tomorrow at 10am.\"\n",
+        "Sentiment: Neutral\n",
+        "\n",
+        "Tweet: \"I'm not sure if I like the new update, it has some good and some bad things.\"\n",
+        "Sentiment:\n",
+        "\"\"\"\n",
+        "print(\"\\n--- FEW-SHOT PREDICTION ---\")\n",
+        "result_few_shot = ...\n",
+        "# We use a very low temperature so it sticks to the pattern\n",
+        "print(result_few_shot[0]['generated_text'])\n",
+        "# As you can see, the result with few-shot is much more reliable.\n"
+      ],
+      "metadata": {
+        "id": "bUBcobMCdPaK"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# @title # 5. Experiment 4: Inducing Reasoning (Chain-of-Thought)\n",
+        "#\n",
+        "# For problems that require logic, we can ask the model to \"think step by step\".\n",
+        "# This forces it to break down the problem before giving the final answer, which often improves the result.\n",
+        "\n",
+        "prompt_problema = \"\"\"\n",
+        "Q: Maria has 5 apples. She buys 2 more packs of apples, each containing 3 apples. She then gives 4 apples to her friend. How many apples does Maria have left?Let's think step by step.\n",
+        "\"\"\"\n",
+        "\n",
+        "prompt_chain_of_thought = \"\"\"\n",
+        "Q: Maria has 5 apples. She buys 2 more packs of apples, each containing 3 apples. She then gives 4 apples to her friend. How many apples does Maria have left?\n",
+        "A: Let's think step by step.\n",
+        "1. Maria starts with 5 apples.\n",
+        "2. She buys 2 packs of 3 apples, so she gets 2 * 3 = 6 new apples.\n",
+        "3. Her total is now 5 + 6 = 11 apples.\n",
+        "4. She gives away 4 apples, so she has 11 - 4 = 7 apples left.\n",
+        "The final answer is 7.\n",
+        "\"\"\"\n",
+        "# Although the small model we are using may not be good at math, this technique is\n",
+        "# fundamental for larger models like GPT-4, Llama, or Gemini.\n",
+        "# With a small model, the idea is to show how the prompt guides the structure.\n",
+        "\n",
+        "print(\"--- PROMPT WITH CHAIN-OF-THOUGHT ---\")\n",
+        "result_cot = ...\n",
+        "print(result_cot[0]['generated_text'])\n"
+      ],
+      "metadata": {
+        "id": "_lPN3tqDdP3C"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# @title # 6. Experiment 5: Adopting Personas and Formats\n",
+        "#\n",
+        "# We can instruct the model to adopt a personality or to return information in a structured format like JSON.\n",
+        "\n",
+        "# --- Role-Playing ---\n",
+        "prompt_role_play = \"\"\"\n",
+        "Act as a grumpy, old pirate. Explain what a \"for loop\" is in Python.\n",
+        "\"\"\"\n",
+        "print(\"--- ROLE-PLAYING PROMPT ---\")\n",
+        "result_role_play = ...\n",
+        "print(result_role_play[0]['generated_text'])\n",
+        "\n",
+        "\n",
+        "# --- Format Control (JSON) ---\n",
+        "prompt_json = \"\"\"\n",
+        "Extract the key information from the following text and provide it as a JSON object.\n",
+        "\n",
+        "Text: \"The package for customer John Doe (order #1234) was shipped today, June 15th, via Express Mail.\"\n",
+        "\n",
+        "JSON:\n",
+        "{\n",
+        "  \"customer_name\": \"John Doe\",\n",
+        "  \"order_id\": \"1234\",\n",
+        "  \"shipping_date\": \"June 15th\",\n",
+        "  \"shipping_method\": \"Express Mail\"\n",
+        "}\n",
+        "\n",
+        "Text: \"We need to schedule a meeting with Dr. Eva Smith for next Monday to discuss the quarterly results (project Q3-Alpha).\"\n",
+        "\n",
+        "JSON:\n",
+        "\"\"\"\n",
+        "print(\"\\n--- FORMAT CONTROL PROMPT (JSON) ---\")\n",
+        "result_json = ...\n",
+        "print(result_json[0]['generated_text'])\n",
+        "\n",
+        "\n",
+        "\n"
+      ],
+      "metadata": {
+        "id": "NvcXwsXtj0Gl"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# @title ### 💪 Practical Exercises\n",
+        "#\n",
+        "# Now it's your turn to be the prompt engineer! Use the techniques we've seen to solve the following challenges.\n",
+        "\n",
+        "# ---\n",
+        "# **Exercise 1: The JSON Product Generator**\n",
+        "#\n",
+        "# Write a prompt that asks the model to generate the description of a fictional technology product. The output must be **mandatorily a JSON object** containing the following keys: `product_name`, `features` (a list of strings), and `promotional_tagline`.\n",
+        "#\n",
+        "# *Hint: Use the \"few-shot\" technique by giving it an example of the output format you expect.*\n",
+        "\n",
+        "# Your code for Exercise 1 here\n",
+        "print(\"--- Exercise 1: JSON Generator ---\")\n",
+        "prompt_ejercicio_1 = \"\"\"\n",
+        "# Your prompt here\n",
+        "\"\"\"\n",
+        "# ...\n",
+        "\n",
+        "# ---\n",
+        "# **Exercise 2: The Creative Screenwriter**\n",
+        "#\n",
+        "# Ask the model to act as a movie screenwriter. Your prompt should instruct it to write a 3-sentence synopsis for a film that mixes two unlikely genres: **\"Pirate Comedy\"** and **\"Science Fiction on Mars\"**.\n",
+        "#\n",
+        "# *Hint: Use the \"role-playing\" technique and be very specific in what you ask for.*\n",
+        "\n",
+        "# Your code for Exercise 2 here\n",
+        "print(\"\\n--- Exercise 2: Creative Screenwriter ---\")\n",
+        "prompt_ejercicio_2 = \"\"\"\n",
+        "# Your prompt here\n",
+        "\"\"\"\n",
+        "# ...\n",
+        "\n",
+        "# ---\n",
+        "# **Exercise 3: The Slang Translator**\n",
+        "#\n",
+        "# Teach the model to translate sentences into \"jerigonza\" (a simple youth slang where \"ti\" is added to the end of each word).\n",
+        "#\n",
+        "# 1. Use the \"few-shot\" technique to give it 2 or 3 translation examples.\n",
+        "# 2. Give it a new sentence to translate on its own.\n",
+        "#\n",
+        "# Translation example: \"Hola cómo estás\" -> \"Holati comoti estasti\"\n",
+        "\n",
+        "# Your code for Exercise 3 here\n",
+        "print(\"\\n--- Exercise 3: Slang Translator ---\")\n",
+        "prompt_ejercicio_3 = \"\"\"\n",
+        "# Your prompt here\n",
+        "\"\"\"\n",
+        "# ..."
+      ],
+      "metadata": {
+        "id": "Ndm1nGkpmYez"
+      },
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
