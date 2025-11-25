@@ -1223,8 +1223,8 @@ furnished to do so, subject to the following conditions:
 
 ## 👥 Contributors
 
-- **[Your Name]** - Initial development and implementation
-- **[Team Members]** - Model training, data preparation, etc.
+- **Gonzalo Ortiz Fernández** - Initial development and implementation
+- **Guillermo Carnicero** - Model training, data preparation, etc.
 
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
@@ -1237,7 +1237,7 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 **For Questions:**
 - 💬 **General Questions**: GitHub Discussions
-- 📧 **Private Inquiries**: [your-email@example.com]
+- 📧 **Private Inquiries**: [gortif00@estudiantes.unileon.es]
 
 **Response Time:**
 - Best effort support (open-source project)
