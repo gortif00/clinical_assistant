@@ -13,7 +13,9 @@ from app.core.config import (
     SUMMARIZATION_MAX_LENGTH,
     GENERATION_MAX_NEW_TOKENS,
     GENERATION_TEMPERATURE,
-    GENERATION_TOP_P
+    GENERATION_TOP_P,
+    GENERATION_REPETITION_PENALTY,
+    GENERATION_TOP_K
 )
 from app.utils.text_cleaning import clean_text
 
@@ -51,7 +53,15 @@ def classify_mental_health(
         truncation=True,
         max_length=max_length,
         return_tensors="pt"
-    ).to(model.device)
+    )
+    
+    # Move inputs to device with proper tensor allocation for MPS
+    device = model.device
+    if str(device) == "mps":
+        # For MPS, explicitly move each tensor
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+    else:
+        inputs = inputs.to(device)
     
     # Predict
     with torch.no_grad():
@@ -100,15 +110,15 @@ def generate_treatment_recommendation_with_classification(
         Dictionary with classification, summary, recommendation, and metadata
     """
     
-    # Check if models are loaded
+    # Check if critical models are loaded (Llama is optional)
     if (
         t5_summarizer_pipeline is None
-        or llama_peft_model is None
-        or llama_tokenizer_obj is None
         or classification_model_obj is None
         or classification_tokenizer_obj is None
     ):
-        return {"error": "Error: One or more models not loaded correctly."}
+        return {"error": "Error: Critical models (classification/summarization) not loaded correctly."}
+    
+    llama_available = llama_peft_model is not None and llama_tokenizer_obj is not None
     
     # ==================== STAGE 1: CLASSIFICATION ====================
     print("\n[STAGE 1/3] 🔍 Classifying pathology...")
@@ -142,13 +152,42 @@ def generate_treatment_recommendation_with_classification(
     print("\n[STAGE 2/3] 📝 Generating diagnosis summary...")
     
     cleaned_text = clean_text(patient_text)
-    summary_result = t5_summarizer_pipeline(
-        cleaned_text,
-        min_length=SUMMARIZATION_MIN_LENGTH,
-        max_length=SUMMARIZATION_MAX_LENGTH,
-        clean_up_tokenization_spaces=True
+    
+    # Get T5 model and tokenizer
+    t5_model = t5_summarizer_pipeline["model"]
+    t5_tokenizer = t5_summarizer_pipeline["tokenizer"]
+    
+    # Tokenize input
+    inputs = t5_tokenizer(
+        "summarize: " + cleaned_text,
+        return_tensors="pt",
+        max_length=512,
+        truncation=True
     )
-    diagnosis_summary = summary_result[0]["summary_text"]
+    
+    # Move to device with MPS handling
+    device = t5_model.device
+    if str(device) == "mps":
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+    else:
+        inputs = inputs.to(device)
+    
+    # Calculate appropriate max_length based on input length
+    input_length = len(cleaned_text.split())
+    dynamic_max_length = min(SUMMARIZATION_MAX_LENGTH, max(50, int(input_length * 0.6)))
+    dynamic_min_length = min(SUMMARIZATION_MIN_LENGTH, dynamic_max_length - 20)
+    
+    # Generate summary
+    with torch.no_grad():
+        summary_ids = t5_model.generate(
+            **inputs,
+            min_length=dynamic_min_length,
+            max_length=dynamic_max_length,
+            num_beams=4,
+            early_stopping=True
+        )
+    
+    diagnosis_summary = t5_tokenizer.decode(summary_ids[0], skip_special_tokens=True)
     
     print(f"✅ Summary generated ({len(diagnosis_summary)} chars)")
     print(f"   Preview: {diagnosis_summary[:100]}...")
@@ -156,61 +195,70 @@ def generate_treatment_recommendation_with_classification(
     # ==================== STAGE 3: GENERATION ====================
     print("\n[STAGE 3/3] 💊 Generating treatment recommendation...")
     
-    system_prompt = (
-        "You are an expert clinical psychologist providing evidence-based treatment "
-        "recommendations. Your recommendations should be specific, actionable, and "
-        "tailored to the diagnosed condition."
-    )
-    
-    user_prompt = (
-        f"Diagnosed Pathology: {detected_pathology}\n"
-        f"Clinical Summary: {diagnosis_summary}\n\n"
-        "Generate a comprehensive, evidence-based treatment recommendation including:\n"
-        "1. Recommended psychotherapy approaches\n"
-        "2. Medication considerations (if applicable)\n"
-        "3. Lifestyle interventions\n"
-        "4. Follow-up and monitoring plan"
-    )
-    
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
-    
-    prompt = llama_tokenizer_obj.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True
-    )
-    
-    input_ids = llama_tokenizer_obj(
-        prompt,
-        return_tensors="pt",
-        truncation=True
-    ).to(llama_peft_model.device)
-    
-    output_tokens = llama_peft_model.generate(
-        **input_ids,
-        max_new_tokens=GENERATION_MAX_NEW_TOKENS,
-        do_sample=True,
-        temperature=GENERATION_TEMPERATURE,
-        top_p=GENERATION_TOP_P,
-        eos_token_id=llama_tokenizer_obj.eos_token_id,
-    )
-    
-    response = llama_tokenizer_obj.decode(
-        output_tokens[0][input_ids["input_ids"].shape[1]:],
-        skip_special_tokens=True
-    ).strip()
-    
-    # Clean response format
-    match = re.search(r"Recommendation:\s*", response, re.IGNORECASE)
-    if match:
-        final_recommendation = response[match.end():].strip()
+    if not llama_available:
+        final_recommendation = (
+            f"⚠️ Llama model unavailable. Basic recommendation for {detected_pathology}:\n\n"
+            "Please consult with a licensed mental health professional for personalized treatment. "
+            "The classification and summary above can help guide the initial assessment."
+        )
+        print("⚠️ Using fallback recommendation (Llama model not loaded)")
     else:
-        final_recommendation = response
-    
-    print("✅ Recommendation generated")
+        system_prompt = (
+            "You are an expert clinical psychologist providing evidence-based treatment "
+            "recommendations. Your recommendations should be specific, actionable, and "
+            "tailored to the diagnosed condition."
+        )
+        
+        user_prompt = (
+            f"Diagnosed Pathology: {detected_pathology}\n"
+            f"Clinical Summary: {diagnosis_summary}\n\n"
+            "Generate a comprehensive, evidence-based treatment recommendation including:\n"
+            "1. Recommended psychotherapy approaches\n"
+            "2. Medication considerations (if applicable)\n"
+            "3. Lifestyle interventions\n"
+            "4. Follow-up and monitoring plan"
+        )
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        
+        prompt = llama_tokenizer_obj.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+        )
+        
+        input_ids = llama_tokenizer_obj(
+            prompt,
+            return_tensors="pt",
+            truncation=True
+        )
+        
+        # Move to device with proper MPS handling
+        device = llama_peft_model.device
+        if str(device) == "mps":
+            input_ids = {k: v.to(device) for k, v in input_ids.items()}
+        else:
+            input_ids = input_ids.to(device)
+        
+        output_tokens = llama_peft_model.generate(
+            **input_ids,
+            max_new_tokens=256,
+            do_sample=False,
+            num_beams=1,
+            repetition_penalty=1.2,
+            eos_token_id=llama_tokenizer_obj.eos_token_id,
+            pad_token_id=llama_tokenizer_obj.pad_token_id,
+        )
+        
+        final_recommendation = llama_tokenizer_obj.decode(
+            output_tokens[0][input_ids["input_ids"].shape[1]:],
+            skip_special_tokens=True
+        ).strip()
+        
+        print("✅ Recommendation generated")
     
     # ==================== FINAL RESULT ====================
     result = {
@@ -256,8 +304,10 @@ def generate_treatment_manual_mode(
         Dictionary with summary, recommendation, and metadata
     """
     
-    if t5_summarizer_pipeline is None or llama_peft_model is None or llama_tokenizer_obj is None:
-        return {"error": "Error: Required models not loaded correctly."}
+    if t5_summarizer_pipeline is None:
+        return {"error": "Error: Summarization model not loaded correctly."}
+    
+    llama_available = llama_peft_model is not None and llama_tokenizer_obj is not None
     
     print(f"\n[MANUAL MODE] ℹ️ Analyzing case for {pathology}...")
     
@@ -265,67 +315,112 @@ def generate_treatment_manual_mode(
     print("📝 Extracting clinical summary...")
     
     cleaned_text = clean_text(patient_text)
-    summary_result = t5_summarizer_pipeline(
-        cleaned_text,
-        min_length=SUMMARIZATION_MIN_LENGTH,
-        max_length=SUMMARIZATION_MAX_LENGTH,
-        clean_up_tokenization_spaces=True
+    
+    # Get T5 model and tokenizer
+    t5_model = t5_summarizer_pipeline["model"]
+    t5_tokenizer = t5_summarizer_pipeline["tokenizer"]
+    
+    # Tokenize input
+    inputs = t5_tokenizer(
+        "summarize: " + cleaned_text,
+        return_tensors="pt",
+        max_length=512,
+        truncation=True
     )
-    summary = summary_result[0]["summary_text"]
+    
+    # Move to device with MPS handling
+    device = t5_model.device
+    if str(device) == "mps":
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+    else:
+        inputs = inputs.to(device)
+    
+    # Calculate appropriate max_length based on input length
+    input_length = len(cleaned_text.split())
+    dynamic_max_length = min(SUMMARIZATION_MAX_LENGTH, max(50, int(input_length * 0.6)))
+    dynamic_min_length = min(SUMMARIZATION_MIN_LENGTH, dynamic_max_length - 20)
+    
+    # Generate summary
+    with torch.no_grad():
+        summary_ids = t5_model.generate(
+            **inputs,
+            min_length=dynamic_min_length,
+            max_length=dynamic_max_length,
+            num_beams=4,
+            early_stopping=True
+        )
+    
+    summary = t5_tokenizer.decode(summary_ids[0], skip_special_tokens=True)
     
     print(f"✅ Summary generated ({len(summary)} chars)")
     
     # ==================== GENERATION ====================
     print("💊 Formulating treatment recommendations...")
     
-    system_prompt = (
-        "You are an expert clinical psychologist. "
-        "You write clear, structured treatment recommendations, "
-        "always emphasizing safety and referral to a professional."
-    )
-    
-    user_prompt = (
-        f"Detected/Selected pathology: {pathology}\n"
-        f"Diagnosis summary: {summary}\n\n"
-        "Generate a structured treatment recommendation with:\n"
-        "1. Psychoeducation\n"
-        "2. Recommended therapeutic approaches\n"
-        "3. Self-care guidelines\n"
-        "4. Warning signs that require urgent professional help."
-    )
-    
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
-    
-    prompt = llama_tokenizer_obj.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True
-    )
-    
-    input_ids = llama_tokenizer_obj(
-        prompt,
-        return_tensors="pt",
-        truncation=True
-    ).to(llama_peft_model.device)
-    
-    output = llama_peft_model.generate(
-        **input_ids,
-        max_new_tokens=GENERATION_MAX_NEW_TOKENS,
-        do_sample=True,
-        temperature=GENERATION_TEMPERATURE,
-        top_p=GENERATION_TOP_P,
-        eos_token_id=llama_tokenizer_obj.eos_token_id,
-    )
-    
-    recommendation = llama_tokenizer_obj.decode(
-        output[0][input_ids["input_ids"].shape[1]:],
-        skip_special_tokens=True
-    ).strip()
-    
-    print("✅ Recommendation generated")
+    if not llama_available:
+        recommendation = (
+            f"⚠️ Llama model unavailable. Basic recommendation for {pathology}:\n\n"
+            "Please consult with a licensed mental health professional for personalized treatment. "
+            "The summary above can help guide the initial assessment."
+        )
+        print("⚠️ Using fallback recommendation (Llama model not loaded)")
+    else:
+        system_prompt = (
+            "You are an expert clinical psychologist. "
+            "You write clear, structured treatment recommendations, "
+            "always emphasizing safety and referral to a professional."
+        )
+        
+        user_prompt = (
+            f"Detected/Selected pathology: {pathology}\n"
+            f"Diagnosis summary: {summary}\n\n"
+            "Generate a structured treatment recommendation with:\n"
+            "1. Psychoeducation\n"
+            "2. Recommended therapeutic approaches\n"
+            "3. Self-care guidelines\n"
+            "4. Warning signs that require urgent professional help."
+        )
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        
+        prompt = llama_tokenizer_obj.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+        )
+        
+        input_ids = llama_tokenizer_obj(
+            prompt,
+            return_tensors="pt",
+            truncation=True
+        )
+        
+        # Move to device with proper MPS handling
+        device = llama_peft_model.device
+        if str(device) == "mps":
+            input_ids = {k: v.to(device) for k, v in input_ids.items()}
+        else:
+            input_ids = input_ids.to(device)
+        
+        output = llama_peft_model.generate(
+            **input_ids,
+            max_new_tokens=256,
+            do_sample=False,
+            num_beams=1,
+            repetition_penalty=1.2,
+            eos_token_id=llama_tokenizer_obj.eos_token_id,
+            pad_token_id=llama_tokenizer_obj.pad_token_id,
+        )
+        
+        recommendation = llama_tokenizer_obj.decode(
+            output[0][input_ids["input_ids"].shape[1]:],
+            skip_special_tokens=True
+        ).strip()
+        
+        print("✅ Recommendation generated")
     
     # ==================== RESULT ====================
     result = {

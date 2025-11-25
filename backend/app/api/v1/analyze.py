@@ -9,12 +9,8 @@ from app.ml.pipeline import (
     generate_treatment_manual_mode
 )
 from app.ml.models_loader import (
-    classification_model,
-    classification_tokenizer,
-    t5_summarizer,
-    llama_model,
-    llama_tokenizer,
-    check_models_loaded
+    check_models_loaded,
+    get_models
 )
 from app.core.config import MIN_TEXT_LENGTH, CLASSIFICATION_CONFIDENCE_THRESHOLD
 
@@ -69,15 +65,18 @@ def analyze_case(data: CaseRequest):
         )
     
     try:
+        # Get current model instances
+        models = get_models()
+        
         if data.auto_classify:
             # Automatic classification mode
             result = generate_treatment_recommendation_with_classification(
                 patient_text=data.text,
-                classification_model_obj=classification_model,
-                classification_tokenizer_obj=classification_tokenizer,
-                t5_summarizer_pipeline=t5_summarizer,
-                llama_peft_model=llama_model,
-                llama_tokenizer_obj=llama_tokenizer,
+                classification_model_obj=models['classification_model'],
+                classification_tokenizer_obj=models['classification_tokenizer'],
+                t5_summarizer_pipeline=models['t5_summarizer'],
+                llama_peft_model=models['llama_model'],
+                llama_tokenizer_obj=models['llama_tokenizer'],
                 confidence_threshold=CLASSIFICATION_CONFIDENCE_THRESHOLD,
             )
             
@@ -106,9 +105,9 @@ def analyze_case(data: CaseRequest):
             result = generate_treatment_manual_mode(
                 patient_text=data.text,
                 pathology=data.pathology,
-                t5_summarizer_pipeline=t5_summarizer,
-                llama_peft_model=llama_model,
-                llama_tokenizer_obj=llama_tokenizer
+                t5_summarizer_pipeline=models['t5_summarizer'],
+                llama_peft_model=models['llama_model'],
+                llama_tokenizer_obj=models['llama_tokenizer']
             )
             
             if "error" in result:
