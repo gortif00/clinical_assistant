@@ -1,0 +1,205 @@
+{
+  "dashboard": {
+    "title": "Clinical Assistant - Production Metrics",
+    "tags": ["clinical-assistant", "ml", "production"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Request Duration (p95)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{method}} {{endpoint}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Active Requests",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "http_requests_active",
+            "legendFormat": "Active"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(errors_total[5m])",
+            "legendFormat": "{{error_type}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Model Inference Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(model_inference_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{model_name}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Model Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "model_memory_usage_bytes / 1024 / 1024 / 1024",
+            "legendFormat": "{{model_name}}"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "decgbytes",
+            "label": "Memory (GB)"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      },
+      {
+        "id": 7,
+        "title": "HTTP Status Codes",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "sum by (status) (increase(http_requests_total[1h]))",
+            "legendFormat": "{{status}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 24}
+      },
+      {
+        "id": 8,
+        "title": "Pod CPU Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(container_cpu_usage_seconds_total{namespace=\"production\", pod=~\"clinical-assistant.*\"}[5m])",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 24}
+      },
+      {
+        "id": 9,
+        "title": "Pod Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "container_memory_usage_bytes{namespace=\"production\", pod=~\"clinical-assistant.*\"} / 1024 / 1024 / 1024",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "decgbytes",
+            "label": "Memory (GB)"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 24}
+      },
+      {
+        "id": 10,
+        "title": "Top Endpoints by Request Count",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, sum by (endpoint) (increase(http_requests_total[1h])))",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32}
+      },
+      {
+        "id": 11,
+        "title": "Slowest Endpoints (p99)",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "topk(10, histogram_quantile(0.99, sum by (endpoint, le) (rate(http_request_duration_seconds_bucket[5m]))))",
+            "format": "table",
+            "instant": true
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32}
+      },
+      {
+        "id": 12,
+        "title": "Pod Restart Count",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"production\", pod=~\"clinical-assistant.*\"})"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 40}
+      },
+      {
+        "id": 13,
+        "title": "Available Replicas",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "kube_deployment_status_replicas_available{namespace=\"production\", deployment=\"clinical-assistant\"}"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 40}
+      },
+      {
+        "id": 14,
+        "title": "Desired Replicas",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "kube_deployment_spec_replicas{namespace=\"production\", deployment=\"clinical-assistant\"}"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 40}
+      },
+      {
+        "id": 15,
+        "title": "Uptime",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "time() - process_start_time_seconds"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "dtdurations"
+          }
+        },
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 40}
+      }
+    ]
+  }
+}

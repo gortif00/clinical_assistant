@@ -4,10 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Clinical Mental Health Assistant</title>
+  <link rel="icon" type="image/svg+xml" href="images/favicon.svg" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
   <div class="container">
+    <!-- Dark Mode Toggle -->
+    <button id="darkModeToggle" class="dark-mode-toggle" title="Toggle dark mode">🌙</button>
+    
     <!-- Header -->
     <header class="header">
       <h1>🧠 Clinical Mental Health Assistant</h1>
@@ -18,21 +22,36 @@
 
     <!-- Main Content -->
     <div class="main-content">
+      <!-- History Sidebar -->
+      <div class="history-sidebar" id="historySidebar">
+        <div class="history-header">
+          <h3>📋 Case History</h3>
+          <button id="toggleHistoryBtn" class="btn-toggle-history">◀</button>
+        </div>
+        <div class="history-list" id="historyList">
+          <p class="empty-history">No previous cases</p>
+        </div>
+        <button id="clearHistoryBtn" class="btn-clear-history">🗑️ Clear All</button>
+      </div>
+
       <!-- Left Panel: Chat Interface -->
       <div class="chat-panel">
         <div class="chat-header">
           <h2>Clinical Analysis Assistant</h2>
-          <button id="clearBtn" class="btn-clear">🔄 New Case</button>
+          <div class="header-buttons">
+            <button id="exportBtn" class="btn-export" title="Export results">Export</button>
+            <button id="clearBtn" class="btn-clear">New Case</button>
+          </div>
         </div>
         
         <!-- Chat Messages -->
         <div id="chatMessages" class="chat-messages">
           <div class="welcome-message">
-            <p><strong>👨‍⚕️ Welcome to the Clinical Mental Health Assistant</strong></p>
+            <p><strong>Welcome to the Clinical Mental Health Assistant</strong></p>
             <p>Enter patient clinical observations or case descriptions to receive:</p>
             <ul>
-              <li>🔍 Automated condition classification</li>
-              <li>💊 Evidence-based treatment recommendations</li>
+              <li>Automated condition classification</li>
+              <li>Evidence-based treatment recommendations</li>
             </ul>
           </div>
         </div>

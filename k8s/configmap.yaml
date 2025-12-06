@@ -1,0 +1,27 @@
+# k8s/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clinical-assistant-config
+  namespace: production
+data:
+  # Application config
+  APP_ENV: "production"
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  
+  # Model config
+  MODEL_CACHE_DIR: "/app/models"
+  USE_MPS: "false"  # En GPU cloud usa CUDA
+  
+  # Rate limiting
+  ENABLE_RATE_LIMITING: "true"
+  USE_REDIS_RATE_LIMITING: "true"
+  REDIS_URL: "redis://redis-service:6379/0"
+  
+  # Monitoring
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+  
+  # Health checks
+  HEALTH_CHECK_TIMEOUT: "5"

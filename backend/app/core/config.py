@@ -81,3 +81,20 @@ QUANTIZATION_CONFIG = {
 
 # ==================== HUGGING FACE TOKEN ====================
 HF_TOKEN = os.getenv("HF_TOKEN", None)
+
+# ==================== SECURITY & AUTH ====================
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
+JWT_REFRESH_SECRET_KEY = os.getenv("JWT_REFRESH_SECRET_KEY", "dev-refresh-secret-key-change-in-production")
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+# ==================== RATE LIMITING ====================
+USE_REDIS_RATE_LIMITING = os.getenv("USE_REDIS_RATE_LIMITING", "false").lower() == "true"
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# ==================== CORS ====================
+CORS_ORIGINS = ["http://localhost:8000", "http://127.0.0.1:8000"]
+
+# ==================== LOGGING ====================
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
