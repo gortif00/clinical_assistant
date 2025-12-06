@@ -29,8 +29,8 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV HF_HOME=/app/.cache/huggingface
 
-# Expose ports
-EXPOSE 8000 3000
+# Expose only backend port (frontend is served by FastAPI)
+EXPOSE 8000
 
-# Default command (backend only)
+# Run unified application (FastAPI serves both API and frontend)
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "backend"]

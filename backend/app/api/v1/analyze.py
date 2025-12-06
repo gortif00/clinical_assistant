@@ -4,15 +4,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional
 
-from app.ml.pipeline import (
-    generate_treatment_recommendation_with_classification,
-    generate_treatment_manual_mode
-)
-from app.ml.models_loader import (
-    check_models_loaded,
-    get_models
-)
-from app.core.config import MIN_TEXT_LENGTH, CLASSIFICATION_CONFIDENCE_THRESHOLD
+from app.ml.models_loader import manager, get_device
+from app.core.config import MIN_TEXT_LENGTH
 
 router = APIRouter(tags=["analysis"])
 
@@ -33,10 +26,20 @@ class CaseResponse(BaseModel):
 @router.get("/health")
 def health_check():
     """Check if API and models are ready"""
-    models_ready = check_models_loaded()
+    models_ready = manager.check_models_loaded()
     return {
         "status": "healthy" if models_ready else "degraded",
         "models_loaded": models_ready
+    }
+
+
+@router.get("/get_status")
+def get_status():
+    """Get execution device status (for frontend display)"""
+    device = get_device()
+    return {
+        "status": "ok",
+        "device": device
     }
 
 
@@ -58,62 +61,24 @@ def analyze_case(data: CaseRequest):
         )
     
     # Check if models are loaded
-    if not check_models_loaded():
+    if not manager.check_models_loaded():
         raise HTTPException(
             status_code=503,
             detail="Models not loaded. Please ensure all models are available."
         )
     
     try:
-        # Get current model instances
-        models = get_models()
+        # ⚡ Use optimized consolidated pipeline
+        result = manager.process_request(
+            text=data.text,
+            auto_classify=data.auto_classify,
+            pathology=data.pathology
+        )
         
-        if data.auto_classify:
-            # Automatic classification mode
-            result = generate_treatment_recommendation_with_classification(
-                patient_text=data.text,
-                classification_model_obj=models['classification_model'],
-                classification_tokenizer_obj=models['classification_tokenizer'],
-                t5_summarizer_pipeline=models['t5_summarizer'],
-                llama_peft_model=models['llama_model'],
-                llama_tokenizer_obj=models['llama_tokenizer'],
-                confidence_threshold=CLASSIFICATION_CONFIDENCE_THRESHOLD,
-            )
-            
-            if isinstance(result, str):
-                raise HTTPException(status_code=500, detail=result)
-            
-            if not isinstance(result, dict):
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Unexpected pipeline output type: {type(result).__name__}"
-                )
-            
-            if "error" in result:
-                raise HTTPException(status_code=500, detail=result["error"])
-            
-            return result
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
         
-        else:
-            # Manual pathology mode
-            if not data.pathology:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Pathology must be provided when auto_classify is False."
-                )
-            
-            result = generate_treatment_manual_mode(
-                patient_text=data.text,
-                pathology=data.pathology,
-                t5_summarizer_pipeline=models['t5_summarizer'],
-                llama_peft_model=models['llama_model'],
-                llama_tokenizer_obj=models['llama_tokenizer']
-            )
-            
-            if "error" in result:
-                raise HTTPException(status_code=500, detail=result["error"])
-            
-            return result
+        return result
     
     except HTTPException:
         raise

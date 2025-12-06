@@ -2,7 +2,10 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from app.api.v1.analyze import router as analyze_router
 from app.ml.models_loader import load_all_models
@@ -33,15 +36,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# Include API routers
 app.include_router(analyze_router, prefix="/api/v1")
 
+# Get the project root directory (go up from backend/app/)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+FRONTEND_DIR = BASE_DIR / "frontend"
+
+# Mount static files (CSS, JS)
+app.mount("/css", StaticFiles(directory=str(FRONTEND_DIR / "css")), name="css")
+app.mount("/js", StaticFiles(directory=str(FRONTEND_DIR / "js")), name="js")
 
 @app.get("/")
-def root():
-    """Root endpoint"""
-    return {
-        "message": "Clinical Mental Health Assistant API is running",
-        "version": "1.0.0",
-        "docs": "/docs"
-    }
+async def serve_frontend():
+    """Serve the main frontend HTML"""
+    return FileResponse(str(FRONTEND_DIR / "index.html"))

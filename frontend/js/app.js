@@ -1,6 +1,7 @@
 // frontend/js/app.js
 
-const API_URL = "http://localhost:8000/api/v1/analyze";
+const API_URL = "/api/v1/analyze";
+const STATUS_URL = "/api/v1/get_status";
 
 // DOM Elements
 const chatMessages = document.getElementById("chatMessages");
@@ -11,6 +12,7 @@ const autoClassify = document.getElementById("autoClassify");
 const pathology = document.getElementById("pathology");
 const manualPathologyGroup = document.getElementById("manualPathologyGroup");
 const exampleButtons = document.querySelectorAll(".example-btn");
+const executionDevice = document.getElementById("executionDevice");
 
 // Event Listeners
 analyzeBtn.addEventListener("click", analyzeCase);
@@ -50,7 +52,6 @@ function clearChat() {
       <p>Enter patient clinical observations or case descriptions to receive:</p>
       <ul>
         <li>🔍 Automated condition classification</li>
-        <li>📋 Clinical summary extraction</li>
         <li>💊 Evidence-based treatment recommendations</li>
       </ul>
     </div>
@@ -258,12 +259,16 @@ async function analyzeCase() {
       addBotMessage(formatClassification(data.classification));
     }
     
-    // Show summary
-    await simulateDelay(800);
-    addBotMessage(formatSummary(data.summary));
+    // Show processing status (summary is processed but not displayed)
+    await simulateDelay(300);
+    addBotMessage(`
+      <div class="info-message">
+        ⏳ Generating clinical summary and treatment plan...
+      </div>
+    `);
     
     // Show recommendation
-    await simulateDelay(1000);
+    await simulateDelay(700);
     addBotMessage(formatRecommendation(data.recommendation));
     
   } catch (error) {
@@ -292,5 +297,37 @@ function simulateDelay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Get device icon based on device type
+function getDeviceIcon(device) {
+  switch (device) {
+    case 'cuda':
+      return '⚡ GPU (CUDA)';
+    case 'mps':
+      return '🍎 GPU (Apple Silicon)';
+    case 'cpu':
+    default:
+      return '🐢 CPU';
+  }
+}
+
+// Load execution device status
+async function loadExecutionDevice() {
+  try {
+    const response = await fetch(STATUS_URL);
+    const data = await response.json();
+
+    if (response.ok && data.device) {
+      executionDevice.textContent = getDeviceIcon(data.device.toLowerCase());
+      executionDevice.className = `device-${data.device.toLowerCase()}`;
+    } else {
+      executionDevice.textContent = 'Server not responding';
+    }
+  } catch (error) {
+    executionDevice.textContent = 'Server disconnected';
+    console.error("Error loading device status:", error);
+  }
+}
+
 // Initialize
 toggleManualMode();
+loadExecutionDevice(); // Load device status on startup

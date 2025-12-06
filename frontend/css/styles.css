@@ -80,6 +80,31 @@ body {
   font-weight: 500;
 }
 
+.device-info {
+  font-size: 0.9rem;
+  opacity: 0.75;
+  margin-top: 8px;
+}
+
+#executionDevice {
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+#executionDevice.device-cuda {
+  color: #10b981;
+}
+
+#executionDevice.device-mps {
+  color: #f59e0b;
+}
+
+#executionDevice.device-cpu {
+  color: #64748b;
+}
+
 /* ==================== MAIN CONTENT ==================== */
 .main-content {
   display: grid;
@@ -309,6 +334,15 @@ body {
   border-left: 4px solid var(--error-color);
   border-radius: var(--radius-sm);
   color: #991b1b;
+}
+
+.info-message {
+  padding: 15px;
+  background: #eff6ff;
+  border-left: 4px solid var(--primary-color);
+  border-radius: var(--radius-sm);
+  color: #1e40af;
+  font-style: italic;
 }
 
 /* ==================== INPUT AREA ==================== */

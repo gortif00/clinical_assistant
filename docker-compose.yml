@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  backend:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: clinical-assistant-backend
+    container_name: clinical-assistant
     ports:
       - "8000:8000"
     environment:
@@ -16,7 +16,7 @@ services:
       - ./backend/models:/app/backend/models:ro
       # Cache HuggingFace models
       - huggingface-cache:/app/.cache/huggingface
-    # For Apple Silicon GPU support (experimental)
+    # For NVIDIA GPU support (uncomment if using CUDA)
     # deploy:
     #   resources:
     #     reservations:
@@ -30,19 +30,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s  # Models take time to load
-    restart: unless-stopped
-
-  frontend:
-    image: python:3.11-slim
-    container_name: clinical-assistant-frontend
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app/frontend:ro
-    working_dir: /app/frontend
-    command: python -m http.server 3000
-    depends_on:
-      - backend
     restart: unless-stopped
 
 volumes:
