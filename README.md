@@ -569,14 +569,28 @@ Additional documentation is available in the `docs/` directory:
 ## 📄 License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
-
+**Third-Party Components**: This project uses models and datasets with various licenses (Apache 2.0, Llama 3.2 License, CC0). See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for complete licensing information.
 ---
 
 ## 🙏 Acknowledgments
 
-- **Models**: BERT, T5, and Llama from HuggingFace Transformers
-- **Framework**: FastAPI for unified backend/frontend serving
-- **Optimization**: Inspired by efficient model management patterns
+This project builds upon several state-of-the-art models and datasets:
+
+### Models
+- **[MentalBERT](https://huggingface.co/mental/mental-bert-base-uncased)** (Ji et al., 2022) - Base model for classification
+- **[T5-base](https://huggingface.co/t5-base)** (Raffel et al., 2020) - Summarization model
+- **[Llama 3.2-1B-Instruct](https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct)** (Meta AI, 2024) - Treatment generation
+
+### Datasets
+- **[Mental Disorders Dataset](https://huggingface.co/datasets/Kanakmi/mental-disorders)** - 204K samples for classification
+- **[PubMed Summarization Dataset](https://www.kaggle.com/datasets/thedevastator/pubmed-article-summarization-dataset)** - Medical text summarization
+
+### Frameworks
+- **FastAPI** - Unified backend/frontend serving
+- **PyTorch & HuggingFace Transformers** - Deep learning infrastructure
+- **PEFT & BitsAndBytes** - Efficient fine-tuning and quantization
+
+📄 **Full citations and licenses**: See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) and [CITATIONS.bib](CITATIONS.bib)
 
 ---
 
