@@ -27,6 +27,10 @@ ENV/
 env/
 .venv
 
+# Logs
+logs/
+*.log
+
 # IDEs
 .vscode/
 .idea/
@@ -34,6 +38,10 @@ env/
 *.swo
 *~
 .DS_Store
+
+# Temporary files
+*.tmp
+.cleanup_plan.txt
 
 # Environment variables
 .env
