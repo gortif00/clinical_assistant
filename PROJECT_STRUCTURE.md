@@ -78,10 +78,7 @@ clinical_assistant/
 │
 └── 📁 docs/                       # Documentation
     ├── CITATIONS.md               # Academic citation guide
-    ├── DEPLOYMENT.md              # Deployment instructions
-    ├── README_PRODUCTION.md       # Production setup guide
-    ├── PRODUCTION_IMPLEMENTATION.md  # Production features overview
-    └── SPEED_OPTIMIZATIONS.md     # Performance optimizations
+    └── DEPLOYMENT.md              # Production deployment guide
 ```
 
 ---

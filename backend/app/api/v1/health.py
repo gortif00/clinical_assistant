@@ -1,19 +1,40 @@
 # backend/app/api/v1/health.py
+# HEALTH CHECK ENDPOINTS FOR KUBERNETES AND MONITORING
+# Provides comprehensive health checks for models, GPU, memory, and disk
+
 from fastapi import APIRouter, status
 from datetime import datetime
-import psutil
-import torch
+import psutil  # System monitoring (CPU, memory, disk)
+import torch  # GPU availability detection
 from typing import Dict, Any
-import asyncio
+import asyncio  # Parallel execution of health checks
 
 router = APIRouter()
 
 class HealthChecker:
-    """Sistema de health checks"""
+    """
+    Health check system for monitoring application status.
+    
+    Provides methods to check:
+    - ML models loading status
+    - GPU availability and memory
+    - System memory usage
+    - Disk space availability
+    """
     
     @staticmethod
     async def check_model_loaded() -> Dict[str, Any]:
-        """Verifica que los modelos estén cargados"""
+        """
+        Verify that ML models are loaded and ready.
+        
+        Checks if the three critical models are in memory:
+        - Classifier (BERT): Mental health condition detection
+        - Summarizer (T5): Clinical summary generation
+        - Generator (Llama): Treatment recommendations
+        
+        Returns:
+            Dict with status and individual model loading state
+        """
         try:
             from app.ml.models_loader import manager
             return {
@@ -29,7 +50,17 @@ class HealthChecker:
     
     @staticmethod
     async def check_gpu() -> Dict[str, Any]:
-        """Verifica disponibilidad de GPU"""
+        """
+        Check GPU availability and memory usage.
+        
+        Detects three types of compute devices:
+        - CUDA: NVIDIA GPUs (with memory info)
+        - MPS: Apple Silicon GPUs (M1/M2/M3)
+        - CPU: Fallback when no GPU is available
+        
+        Returns:
+            Dict with device type, GPU name, and memory stats (if CUDA)
+        """
         try:
             if torch.cuda.is_available():
                 return {
@@ -58,7 +89,15 @@ class HealthChecker:
     
     @staticmethod
     async def check_memory() -> Dict[str, Any]:
-        """Verifica uso de memoria"""
+        """
+        Check system RAM usage.
+        
+        Monitors total, available, and used percentage of system memory.
+        Issues a warning if memory usage exceeds 90%.
+        
+        Returns:
+            Dict with memory stats in GB and usage percentage
+        """
         try:
             memory = psutil.virtual_memory()
             return {
@@ -72,7 +111,15 @@ class HealthChecker:
     
     @staticmethod
     async def check_disk() -> Dict[str, Any]:
-        """Verifica espacio en disco"""
+        """
+        Check disk space availability.
+        
+        Monitors root filesystem usage.
+        Issues a warning if disk usage exceeds 90%.
+        
+        Returns:
+            Dict with disk stats in GB and usage percentage
+        """
         try:
             disk = psutil.disk_usage('/')
             return {
@@ -86,7 +133,15 @@ class HealthChecker:
 
 @router.get("/health", status_code=status.HTTP_200_OK)
 async def health_check():
-    """Health check básico - solo responde si la app está viva"""
+    """
+    Basic health check - responds if the application is alive.
+    
+    This is the simplest health check, used by load balancers
+    and monitoring systems to verify the service is running.
+    
+    Returns:
+        Status, timestamp, and service name
+    """
     return {
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
@@ -95,10 +150,23 @@ async def health_check():
 
 @router.get("/health/detailed", status_code=status.HTTP_200_OK)
 async def detailed_health_check():
-    """Health check detallado con todas las verificaciones"""
+    """
+    Detailed health check with all system verifications.
+    
+    Runs comprehensive checks on:
+    - ML models loading status
+    - GPU availability and memory
+    - System RAM usage
+    - Disk space
+    
+    All checks run in parallel for faster response.
+    
+    Returns:
+        Overall status (healthy/degraded/unhealthy) and individual check results
+    """
     checker = HealthChecker()
     
-    # Ejecutar todos los checks en paralelo
+    # Execute all checks in parallel for faster response
     models_check, gpu_check, memory_check, disk_check = await asyncio.gather(
         checker.check_model_loaded(),
         checker.check_gpu(),
@@ -106,7 +174,7 @@ async def detailed_health_check():
         checker.check_disk()
     )
     
-    # Determinar estado general
+    # Determine overall status based on individual checks
     all_statuses = [
         models_check.get("status"),
         gpu_check.get("status"),
@@ -114,6 +182,7 @@ async def detailed_health_check():
         disk_check.get("status")
     ]
     
+    # Priority: unhealthy > warning > healthy
     if "unhealthy" in all_statuses:
         overall_status = "unhealthy"
         http_status = status.HTTP_503_SERVICE_UNAVAILABLE
@@ -138,7 +207,14 @@ async def detailed_health_check():
 
 @router.get("/health/ready", status_code=status.HTTP_200_OK)
 async def readiness_check():
-    """Readiness probe - verifica si la app puede recibir tráfico"""
+    """
+    Kubernetes readiness probe - checks if the app can receive traffic.
+    \n    Used by Kubernetes to determine if the pod should receive requests.
+    If models are not loaded, the pod is marked as not ready and won't
+    receive traffic until they are.
+    \n    Returns:
+        ready: True if models are loaded, False otherwise
+    """
     checker = HealthChecker()
     models_status = await checker.check_model_loaded()
     
@@ -156,7 +232,13 @@ async def readiness_check():
 
 @router.get("/health/live", status_code=status.HTTP_200_OK)
 async def liveness_check():
-    """Liveness probe - verifica si la app debe ser reiniciada"""
+    """
+    Kubernetes liveness probe - checks if the app should be restarted.
+    \n    Used by Kubernetes to determine if the pod is stuck or deadlocked.
+    If this endpoint stops responding, Kubernetes will restart the pod.
+    \n    Returns:
+        alive: Always True (if this endpoint responds, the app is alive)
+    """
     return {
         "alive": True,
         "timestamp": datetime.utcnow().isoformat()

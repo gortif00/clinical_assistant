@@ -1,4 +1,15 @@
 # backend/app/ml/pipeline.py
+"""
+ML Pipeline functions for clinical case analysis.
+
+This module provides standalone pipeline functions for the 3-stage analysis:
+1. Classification: Identify mental health condition
+2. Summarization: Generate clinical summary
+3. Generation: Create treatment recommendations
+
+These functions are an alternative to the consolidated ModelManager.process_request()
+method and may be used for custom workflows or legacy compatibility.
+"""
 
 import torch
 import numpy as np
@@ -27,25 +38,34 @@ def classify_mental_health(
     max_length: int = CLASSIFICATION_MAX_LENGTH
 ) -> Optional[Dict]:
     """
-    Classify the text into one of the 5 mental health categories.
+    Classify patient text into one of 5 mental health conditions.
+    
+    Uses a fine-tuned BERT model to classify clinical text into:
+    - Depression
+    - Anxiety
+    - Bipolar Disorder
+    - Borderline Personality Disorder (BPD)
+    - Schizophrenia
     
     Args:
-        text: Input text to classify
-        model: Classification model
-        tokenizer: Classification tokenizer
-        max_length: Maximum sequence length
+        text (str): Raw patient clinical text to classify
+        model: BERT classification model (AutoModelForSequenceClassification)
+        tokenizer: BERT tokenizer (AutoTokenizer)
+        max_length (int): Maximum sequence length (default: 512)
         
     Returns:
-        Dictionary containing:
-            - label: class name
-            - label_id: numeric ID
-            - confidence: probability
-            - all_probs: dict with all probabilities
+        Optional[Dict]: Classification results containing:
+            - label (str): Predicted condition name
+            - label_id (int): Numeric class ID (0-4)
+            - confidence (float): Probability of predicted class (0-1)
+            - all_probs (dict): Probability distribution for all 5 classes
+        Returns None if model/tokenizer not provided.
     """
+    # Validate that model and tokenizer are loaded
     if model is None or tokenizer is None:
         return None
     
-    # Clean and tokenize
+    # Clean input text (remove HTML, URLs, normalize whitespace)
     cleaned = clean_text(text)
     inputs = tokenizer(
         cleaned,

@@ -57,7 +57,7 @@ if [ ! -d "models/classifier" ] || [ ! -d "models/t5_summarizer" ] || [ ! -d "mo
     echo "   - backend/models/llama_peft/"
     echo ""
     echo "   Models will need to be trained or downloaded before first use."
-    echo "   See docs/SYSTEM_VERIFICATION_REPORT.md for details."
+    echo "   See README.md for training and setup details."
     echo ""
     read -p "   Continue anyway? (y/n) " -n 1 -r
     echo
