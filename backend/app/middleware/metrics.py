@@ -73,7 +73,7 @@ ERROR_COUNT = Counter(
 # ============================================================================
 
 class MetricsMiddleware:
-    \"""
+    """
     FastAPI middleware for automatic metrics collection.
     
     Tracks:
@@ -81,10 +81,11 @@ class MetricsMiddleware:
     - Request duration (start to finish)
     - Total request count by method, endpoint, and status code
     - Error count by type and endpoint
-    \"""
+    """
     
     async def __call__(self, request: Request, call_next: Callable) -> Response:
-        \"""
+        
+        """
         Process request and collect metrics.
         
         Args:
@@ -92,8 +93,8 @@ class MetricsMiddleware:
             call_next (Callable): Next middleware/handler in chain
             
         Returns:
-            Response: HTTP response from handler
-        \"""
+            Response: HTTP response from handler\
+                """
         # Increment active requests counter
         ACTIVE_REQUESTS.inc()
         
@@ -140,7 +141,7 @@ class MetricsMiddleware:
 # ============================================================================
 
 async def metrics_endpoint(request: Request):
-    \"""
+    """
     Expose metrics in Prometheus format.
     
     This endpoint should be scraped by Prometheus at regular intervals
@@ -148,7 +149,7 @@ async def metrics_endpoint(request: Request):
     
     Returns:
         Response: Metrics in Prometheus text format
-    \"""
+    """
     return Response(
         content=generate_latest(),  # Generate Prometheus format
         media_type=CONTENT_TYPE_LATEST  # text/plain; version=0.0.4

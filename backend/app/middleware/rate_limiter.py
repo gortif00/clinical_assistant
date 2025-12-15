@@ -78,7 +78,7 @@ class AdvancedRateLimiter:
             return await self._check_memory(key, max_requests, window_seconds)
     
     async def _check_redis(self, key: str, max_requests: int, window: int) -> bool:
-        \"""
+        """
         Redis-based rate limiting for distributed deployments.
         
         Uses Redis atomic operations to track request counts across
@@ -94,7 +94,7 @@ class AdvancedRateLimiter:
             
         Raises:
             HTTPException: 429 if rate limit exceeded
-        \"""
+        """
         # Get current request count for this key
         current = redis_client.get(key)
         
@@ -119,7 +119,7 @@ class AdvancedRateLimiter:
         return True
     
     async def _check_memory(self, key: str, max_requests: int, window: int) -> bool:
-        \"""
+        """
         In-memory rate limiting fallback for single-instance deployments.
         
         This is a simplified implementation. In production with multiple
@@ -132,7 +132,7 @@ class AdvancedRateLimiter:
             
         Returns:
             bool: Always True (permissive fallback)
-        \"""
+        """
         # Simple in-memory implementation
         # In production with multiple instances, use Redis
         return True

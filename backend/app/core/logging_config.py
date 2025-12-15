@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 
@@ -43,7 +43,7 @@ class JSONFormatter(logging.Formatter):
             str: JSON-formatted log string
         """
         log_data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -151,7 +151,7 @@ def setup_logging(
 
 
 class RequestLogger:
-    \"""
+    """
     Specialized logger for API request tracking.
     
     Logs detailed information about each API request including:
@@ -162,7 +162,7 @@ class RequestLogger:
     - Response status code
     - Response time in milliseconds
     - Error details (if any)
-    \"""
+    """
     
     def __init__(self):
         self.logger = logging.getLogger("api")
@@ -178,7 +178,7 @@ class RequestLogger:
         response_time: float = None,
         error: str = None
     ):
-        \"""
+        """
         Log a complete API request with all relevant details.
         
         Args:
@@ -190,14 +190,14 @@ class RequestLogger:
             status_code (int): HTTP response status code
             response_time (float): Processing time in seconds
             error (str): Error message if request failed
-        \"""
+        """
         # Build log data dictionary
         log_data = {
             "request_id": request_id,
             "method": method,
             "path": path,
             "ip_address": ip_address,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
         # Add optional fields if provided
