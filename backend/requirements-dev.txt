@@ -23,10 +23,6 @@ httpx==0.25.2  # Para TestClient de FastAPI
 # Security scanning
 safety==2.3.5
 bandit==1.7.5
-httpx==0.25.2
-
-# API Testing
-requests==2.31.0
 
 # Monitoring
 prometheus-fastapi-instrumentator==6.1.0
