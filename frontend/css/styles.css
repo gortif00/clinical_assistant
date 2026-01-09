@@ -466,6 +466,23 @@ body.dark-mode .classification-result {
   color: var(--text-primary);
 }
 
+/* Markdown formatting in responses */
+.section-content strong,
+#responseContainer strong {
+  font-weight: 600;
+  color: var(--accent-primary);
+  background: linear-gradient(to right, var(--accent-light), transparent);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.section-content em,
+#responseContainer em {
+  font-style: italic;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 /* Loading Animation */
 .loading {
   display: flex;

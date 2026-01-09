@@ -265,6 +265,26 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Format markdown-style text (bold/italic) into HTML
+function formatMarkdown(text) {
+  if (!text) return '';
+  
+  // Escape HTML first to prevent XSS
+  let formatted = escapeHtml(text);
+  
+  // Convert ***text*** or **text** to <strong>text</strong>
+  formatted = formatted.replace(/\*\*\*(.+?)\*\*\*/g, '<strong>$1</strong>');
+  formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  
+  // Convert *text* to <em>text</em>
+  formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  
+  // Preserve line breaks
+  formatted = formatted.replace(/\n/g, '<br>');
+  
+  return formatted;
+}
+
 // Format classification results
 function formatClassification(classification) {
   const { pathology, confidence, all_probabilities } = classification;
@@ -463,7 +483,7 @@ async function analyzeCase() {
                 fullRecommendation += data.content;
                 const responseContainer = document.getElementById('responseContainer');
                 if (responseContainer) {
-                  responseContainer.textContent = fullRecommendation;
+                  responseContainer.innerHTML = formatMarkdown(fullRecommendation);
                   scrollToBottom();
                 }
               }
