@@ -8,116 +8,107 @@
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <div class="container">
-    <!-- Dark Mode Toggle -->
-    <button id="darkModeToggle" class="dark-mode-toggle" title="Toggle dark mode">🌙</button>
-    
-    <!-- Header -->
-    <header class="header">
-      <h1>🧠 Clinical Mental Health Assistant</h1>
-      <p class="subtitle">AI-Powered Diagnostic Support Tool for Healthcare Professionals</p>
-      <p class="for-professionals">For Psychologists & Mental Health Professionals</p>
-      <p class="device-info">Execution Device: <span id="executionDevice">Loading...</span></p>
-    </header>
-
-    <!-- Main Content -->
-    <div class="main-content">
-      <!-- History Sidebar -->
-      <div class="history-sidebar" id="historySidebar">
-        <div class="history-header">
-          <h3>📋 Case History</h3>
-          <button id="toggleHistoryBtn" class="btn-toggle-history">◀</button>
-        </div>
-        <div class="history-list" id="historyList">
-          <p class="empty-history">No previous cases</p>
-        </div>
-        <button id="clearHistoryBtn" class="btn-clear-history">🗑️ Clear All</button>
+  <!-- Top Navigation Bar -->
+  <nav class="top-nav">
+    <div class="nav-content">
+      <div class="nav-left">
+        <button id="sidebarToggle" class="sidebar-toggle" title="Toggle sidebar">☰</button>
+        <h1 class="app-title">Clinical Assistant</h1>
       </div>
+      <div class="nav-right">
+        <span class="device-badge" id="executionDevice">Loading...</span>
+        <button id="darkModeToggle" class="icon-btn" title="Toggle dark mode">🌙</button>
+      </div>
+    </div>
+  </nav>
 
-      <!-- Left Panel: Chat Interface -->
-      <div class="chat-panel">
-        <div class="chat-header">
-          <h2>Clinical Analysis Assistant</h2>
-          <div class="header-buttons">
-            <button id="exportBtn" class="btn-export" title="Export results">Export</button>
-            <button id="clearBtn" class="btn-clear">New Case</button>
-          </div>
+  <div class="app-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <button id="clearBtn" class="new-chat-btn">
+          <span class="btn-icon">+</span>
+          <span>New conversation</span>
+        </button>
+      </div>
+      
+      <div class="sidebar-content">
+        <div class="history-list" id="historyList">
+          <p class="empty-history">No conversations yet</p>
         </div>
-        
+      </div>
+      
+      <div class="sidebar-footer">
+        <button id="clearHistoryBtn" class="sidebar-btn">
+          <span>🗑️</span>
+          <span>Clear conversations</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Chat Area -->
+    <main class="chat-container">
+      <div class="chat-wrapper">
         <!-- Chat Messages -->
         <div id="chatMessages" class="chat-messages">
-          <div class="welcome-message">
-            <p><strong>Welcome to the Clinical Mental Health Assistant</strong></p>
-            <p>Enter patient clinical observations or case descriptions to receive:</p>
-            <ul>
-              <li>Automated condition classification</li>
-              <li>Evidence-based treatment recommendations</li>
-            </ul>
+          <div class="welcome-screen">
+            <div class="welcome-icon">🧠</div>
+            <h2>Clinical Mental Health Assistant</h2>
+            <p class="welcome-subtitle">AI-powered diagnostic support for healthcare professionals</p>
+            
+            <div class="example-prompts">
+              <button class="example-card" data-example="depression">
+                <div class="example-title">Depression case</div>
+                <div class="example-desc">Analyze a patient with depressive symptoms</div>
+              </button>
+              <button class="example-card" data-example="anxiety">
+                <div class="example-title">Anxiety case</div>
+                <div class="example-desc">Evaluate anxiety and panic symptoms</div>
+              </button>
+              <button class="example-card" data-example="bipolar">
+                <div class="example-title">Bipolar case</div>
+                <div class="example-desc">Assess mood fluctuation patterns</div>
+              </button>
+            </div>
           </div>
         </div>
 
         <!-- Input Area -->
-        <div class="input-area">
-          <textarea 
-            id="caseText" 
-            rows="3"
-            placeholder="Enter patient clinical observations, symptoms, or case notes... (minimum 50 characters)"
-          ></textarea>
-          <button id="analyzeBtn" class="btn-primary">Analyze Case 🔬</button>
-        </div>
-
-        <!-- Example Cases -->
-        <div class="examples">
-          <p class="examples-title">💡 Example clinical cases:</p>
-          <button class="example-btn" data-example="depression">Depression Case</button>
-          <button class="example-btn" data-example="anxiety">Anxiety Case</button>
-          <button class="example-btn" data-example="bipolar">Bipolar Case</button>
-        </div>
-      </div>
-
-      <!-- Right Panel: Settings -->
-      <div class="settings-panel">
-        <h3>⚙️ Clinical Settings</h3>
-        
-        <div class="setting-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="autoClassify" checked />
-            <span>🤖 Automatic Classification</span>
-          </label>
-          <p class="setting-info">AI will identify the condition automatically</p>
-        </div>
-
-        <div class="setting-group" id="manualPathologyGroup" style="display: none;">
-          <label>Manual Diagnosis Selection</label>
-          <select id="pathology" class="select-pathology">
-            <option value="Depression">Depression</option>
-            <option value="Anxiety">Anxiety</option>
-            <option value="Bipolar Disorder">Bipolar Disorder</option>
-            <option value="BPD">BPD</option>
-            <option value="Schizophrenia">Schizophrenia</option>
-          </select>
-          <p class="setting-info">Select if auto-classify is disabled</p>
-        </div>
-
-        <hr class="divider" />
-
-        <div class="info-section">
-          <h4>ℹ️ System Information</h4>
-          <p><strong>AI Pipeline:</strong></p>
-          <ol class="pipeline-steps">
-            <li><strong>Classifier Model</strong> - Identifies primary diagnosis</li>
-            <li><strong>T5 Summarizer</strong> - Extracts clinical summary</li>
-            <li><strong>Llama 3 Generator</strong> - Formulates treatment plan</li>
-          </ol>
+        <div class="input-section">
+          <div class="input-controls">
+            <button id="exportBtn" class="control-btn" title="Export results">↓</button>
+            <label class="control-toggle">
+              <input type="checkbox" id="autoClassify" checked />
+              <span>Auto-classify</span>
+            </label>
+            <select id="pathology" class="control-select" style="display: none;">
+              <option value="Depression">Depression</option>
+              <option value="Anxiety">Anxiety</option>
+              <option value="Bipolar Disorder">Bipolar</option>
+              <option value="BPD">BPD</option>
+              <option value="Schizophrenia">Schizophrenia</option>
+            </select>
+          </div>
           
-          <div class="disclaimer">
-            <p><strong>For Professional Use Only</strong></p>
-            <p>This tool provides diagnostic support and treatment suggestions based on AI analysis. Clinical judgment and professional expertise should always guide final treatment decisions.</p>
+          <div class="input-box">
+            <textarea 
+              id="caseText" 
+              rows="1"
+              placeholder="Enter patient clinical observations..."
+            ></textarea>
+            <button id="analyzeBtn" class="send-btn" title="Analyze case">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M7 11L12 6L17 11M12 18V7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   </div>
+
+
 
   <!-- Hidden example texts -->
   <div id="exampleTexts" style="display: none;">

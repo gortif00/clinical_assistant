@@ -529,7 +529,15 @@ class ModelManager:
             # Create probability distribution for all classes
             all_probs = {LABEL_MAP[i]: float(p) for i, p in enumerate(probs)}
             
-            print(f"✅ Detected: {detected_pathology} ({confidence:.2%})")
+            # Confidence threshold check: If confidence is low, patient may be healthy
+            CONFIDENCE_THRESHOLD = 0.55  # Minimum confidence to diagnose pathology
+            if confidence < CONFIDENCE_THRESHOLD:
+                original_pathology = detected_pathology
+                detected_pathology = "no_significant_pathology"
+                print(f"⚠️ Low confidence ({confidence:.2%}) - No clear pathology detected")
+                print(f"   (Highest match was {original_pathology}, but below threshold)")
+            else:
+                print(f"✅ Detected: {detected_pathology} ({confidence:.2%})")
         else:
             # Manual mode: Use provided pathology instead of classification
             print(f"\n[MANUAL MODE] ℹ️ Using pathology: {pathology}")
@@ -603,21 +611,55 @@ class ModelManager:
             # ========================================
             # System prompt: Define the AI's role and behavior
             system_prompt = (
-                "You are an expert clinical psychologist providing evidence-based treatment "
-                "recommendations. Your recommendations should be specific, actionable, and "
-                "tailored to the diagnosed condition."
+                "You are an expert clinical psychologist with extensive experience in mental health treatment. "
+                "You provide evidence-based, comprehensive treatment recommendations tailored to specific diagnoses. "
+                "Your recommendations are always complete, detailed, and professionally formatted."
             )
             
             # User prompt: Provide context and request specific output format
-            user_prompt = (
-                f"Diagnosed Pathology: {detected_pathology}\n"
-                f"Clinical Summary: {diagnosis_summary}\n\n"
-                "Generate a comprehensive, evidence-based treatment recommendation including:\n"
-                "1. Recommended psychotherapy approaches\n"
-                "2. Medication considerations (if applicable)\n"
-                "3. Lifestyle interventions\n"
-                "4. Follow-up and monitoring plan"
-            )
+            # Enhanced with more explicit instructions for shorter inputs
+            if detected_pathology == "no_significant_pathology":
+                # Special prompt for healthy/normal cases
+                user_prompt = (
+                    f"**Assessment:** NO SIGNIFICANT PATHOLOGY DETECTED\n\n"
+                    f"**Clinical Summary:**\n{diagnosis_summary}\n\n"
+                    "Based on this assessment showing no significant mental health pathology, provide wellness recommendations. "
+                    "Structure your response with the following sections:\n\n"
+                    "**1. Mental Health Status:**\n"
+                    "   - Acknowledge that no significant pathology was detected\n"
+                    "   - Explain that symptoms appear within normal range\n\n"
+                    "**2. Preventive Mental Health Practices:**\n"
+                    "   - Recommend evidence-based practices to maintain mental wellness\n"
+                    "   - Include stress management and resilience-building strategies\n\n"
+                    "**3. Lifestyle & Self-Care:**\n"
+                    "   - Provide specific recommendations for continued well-being\n"
+                    "   - Include sleep hygiene, exercise, social connection, and mindfulness\n\n"
+                    "**4. Monitoring & When to Seek Help:**\n"
+                    "   - List warning signs that would warrant professional consultation\n"
+                    "   - Provide guidance on when to reassess mental health\n\n"
+                    "Provide a complete, encouraging response covering ALL sections above."
+                )
+            else:
+                # Standard prompt for diagnosed pathologies
+                user_prompt = (
+                    f"**Patient Diagnosis:** {detected_pathology.upper()}\n\n"
+                    f"**Clinical Assessment:**\n{diagnosis_summary}\n\n"
+                    f"Based on this {detected_pathology} diagnosis, provide a complete, evidence-based treatment plan. "
+                    "Structure your response with the following sections:\n\n"
+                    "**1. Psychotherapy Approaches:**\n"
+                    f"   - Specify 2-3 evidence-based therapy modalities effective for {detected_pathology}\n"
+                    "   - Explain briefly why each approach is recommended\n\n"
+                    "**2. Medication Considerations:**\n"
+                    "   - List appropriate medication classes if indicated\n"
+                    "   - Include monitoring requirements\n\n"
+                    "**3. Lifestyle & Self-Care Interventions:**\n"
+                    "   - Provide specific, actionable recommendations\n"
+                    "   - Include sleep, exercise, stress management, and social support\n\n"
+                    "**4. Follow-up Plan:**\n"
+                    "   - Specify initial follow-up timeline\n"
+                    "   - Define success criteria and adjustment protocols\n\n"
+                    "Provide a complete response covering ALL sections above."
+                )
             
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -633,18 +675,24 @@ class ModelManager:
             input_ids = self.gen_tokenizer(
                 prompt, 
                 return_tensors="pt", 
-                truncation=True
+                truncation=True,
+                max_length=2048  # Allow longer prompts
             ).to(self.gen_model.device)
             
+            # Enhanced generation parameters for better quality with short inputs
             with torch.no_grad():
                 output_tokens = self.gen_model.generate(
                     **input_ids,
-                    max_new_tokens=256,
-                    min_new_tokens=128,
+                    max_new_tokens=800,  # Increased to 800 to allow complete 4-section responses
+                    min_new_tokens=250,  # Ensure substantial output
                     do_sample=True,
-                    temperature=0.7,
-                    top_p=0.9,
+                    temperature=0.8,  # Slightly higher for more diverse output
+                    top_p=0.92,  # Slightly higher for better coverage
+                    top_k=50,  # Add top_k sampling for better coherence
+                    repetition_penalty=1.15,  # Prevent repetitive text
+                    no_repeat_ngram_size=3,  # Prevent 3-gram repetition
                     eos_token_id=self.gen_tokenizer.eos_token_id,
+                    pad_token_id=self.gen_tokenizer.pad_token_id,  # Explicit pad token
                 )
             
             # Decode generated tokens to text

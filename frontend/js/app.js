@@ -1,7 +1,20 @@
 // frontend/js/app.js
 
 const API_URL = "/api/v1/analyze";
+const STREAM_URL = "/api/v1/analyze_stream";
 const STATUS_URL = "/api/v1/get_status";
+
+// Generation states
+const State = {
+  IDLE: 'idle',
+  ANALYZING: 'analyzing',
+  STREAMING: 'streaming',
+  COMPLETED: 'completed',
+  ERROR: 'error'
+};
+
+let currentState = State.IDLE;
+const ANALYZING_TIMEOUT_MS = 30000; // 30 second failsafe
 
 // DOM Elements
 const chatMessages = document.getElementById("chatMessages");
@@ -10,12 +23,11 @@ const analyzeBtn = document.getElementById("analyzeBtn");
 const clearBtn = document.getElementById("clearBtn");
 const autoClassify = document.getElementById("autoClassify");
 const pathology = document.getElementById("pathology");
-const manualPathologyGroup = document.getElementById("manualPathologyGroup");
-const exampleButtons = document.querySelectorAll(".example-btn");
+const exampleButtons = document.querySelectorAll(".example-card");
 const executionDevice = document.getElementById("executionDevice");
-const historySidebar = document.getElementById("historySidebar");
+const sidebar = document.getElementById("sidebar");
 const historyList = document.getElementById("historyList");
-const toggleHistoryBtn = document.getElementById("toggleHistoryBtn");
+const sidebarToggle = document.getElementById("sidebarToggle");
 const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 const exportBtn = document.getElementById("exportBtn");
 const darkModeToggle = document.getElementById("darkModeToggle");
@@ -31,7 +43,8 @@ analyzeBtn.addEventListener("click", analyzeCase);
 clearBtn.addEventListener("click", clearChat);
 autoClassify.addEventListener("change", toggleManualMode);
 caseText.addEventListener("keydown", handleTextareaKeydown);
-toggleHistoryBtn.addEventListener("click", toggleHistory);
+caseText.addEventListener("input", autoResizeTextarea);
+sidebarToggle.addEventListener("click", toggleSidebar);
 clearHistoryBtn.addEventListener("click", clearHistory);
 exportBtn.addEventListener("click", exportResults);
 darkModeToggle.addEventListener("click", toggleDarkMode);
@@ -41,6 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
   renderHistory();
   loadExecutionDevice();
   loadDarkMode();
+  
+  // Auto-hide sidebar on mobile
+  if (window.innerWidth <= 768) {
+    sidebar.classList.add('hidden');
+  }
 });
 
 // Handle example buttons
@@ -50,19 +68,38 @@ exampleButtons.forEach(btn => {
     const exampleText = document.querySelector(`#exampleTexts [data-example="${exampleType}"]`);
     if (exampleText) {
       caseText.value = exampleText.textContent.trim();
-      caseText.scrollIntoView({ behavior: "smooth", block: "center" });
+      caseText.focus();
+      autoResizeTextarea();
+      
+      // Hide welcome screen
+      const welcomeScreen = document.querySelector('.welcome-screen');
+      if (welcomeScreen) {
+        welcomeScreen.remove();
+      }
     }
   });
 });
 
+// Toggle sidebar
+function toggleSidebar() {
+  sidebar.classList.toggle('hidden');
+}
+
 // Toggle manual pathology selection
 function toggleManualMode() {
-  manualPathologyGroup.style.display = autoClassify.checked ? "none" : "block";
+  pathology.style.display = autoClassify.checked ? "none" : "block";
+}
+
+// Auto-resize textarea
+function autoResizeTextarea() {
+  caseText.style.height = 'auto';
+  caseText.style.height = Math.min(caseText.scrollHeight, 200) + 'px';
 }
 
 // Handle Ctrl/Cmd + Enter to submit
 function handleTextareaKeydown(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    e.preventDefault();
     analyzeCase();
   }
 }
@@ -70,20 +107,59 @@ function handleTextareaKeydown(e) {
 // Clear chat history
 function clearChat() {
   chatMessages.innerHTML = `
-    <div class="welcome-message">
-      <p><strong>👨‍⚕️ Welcome to the Clinical Mental Health Assistant</strong></p>
-      <p>Enter patient clinical observations or case descriptions to receive:</p>
-      <ul>
-        <li>🔍 Automated condition classification</li>
-        <li>💊 Evidence-based treatment recommendations</li>
-      </ul>
+    <div class="welcome-screen">
+      <div class="welcome-icon">🧠</div>
+      <h2>Clinical Mental Health Assistant</h2>
+      <p class="welcome-subtitle">AI-powered diagnostic support for healthcare professionals</p>
+      
+      <div class="example-prompts">
+        <button class="example-card" data-example="depression">
+          <div class="example-title">Depression case</div>
+          <div class="example-desc">Analyze a patient with depressive symptoms</div>
+        </button>
+        <button class="example-card" data-example="anxiety">
+          <div class="example-title">Anxiety case</div>
+          <div class="example-desc">Evaluate anxiety and panic symptoms</div>
+        </button>
+        <button class="example-card" data-example="bipolar">
+          <div class="example-title">Bipolar case</div>
+          <div class="example-desc">Assess mood fluctuation patterns</div>
+        </button>
+      </div>
     </div>
   `;
   caseText.value = "";
+  autoResizeTextarea();
+  lastAnalysisData = null;
+  
+  // Re-attach event listeners to example buttons
+  document.querySelectorAll(".example-card").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const exampleType = btn.getAttribute("data-example");
+      const exampleText = document.querySelector(`#exampleTexts [data-example="${exampleType}"]`);
+      if (exampleText) {
+        caseText.value = exampleText.textContent.trim();
+        caseText.focus();
+        autoResizeTextarea();
+        
+        // Hide welcome screen
+        const welcomeScreen = document.querySelector('.welcome-screen');
+        if (welcomeScreen) {
+          welcomeScreen.remove();
+        }
+      }
+    });
+  });
 }
 
 // Add user message to chat
 function addUserMessage(text) {
+  // Remove welcome screen if it exists
+  const welcomeScreen = document.querySelector('.welcome-screen');
+  if (welcomeScreen) {
+    welcomeScreen.remove();
+  }
+  
   const messageDiv = document.createElement("div");
   messageDiv.className = "message user-message";
   messageDiv.innerHTML = `
@@ -103,7 +179,7 @@ function addBotMessage(html, className = "") {
   messageDiv.innerHTML = `
     <div class="message-avatar">🤖</div>
     <div class="message-content">
-      <div class="message-text">${html}</div>
+      ${html}
     </div>
   `;
   chatMessages.appendChild(messageDiv);
@@ -111,45 +187,20 @@ function addBotMessage(html, className = "") {
   return messageDiv;
 }
 
-// Update existing bot message
-function updateBotMessage(messageDiv, html) {
-  const contentDiv = messageDiv.querySelector(".message-text");
-  if (contentDiv) {
-    contentDiv.innerHTML = html;
-    scrollToBottom();
-  }
-}
-
-// Add loading message with detailed progress
+// Add loading message
 function addLoadingMessage() {
   const messageDiv = document.createElement("div");
   messageDiv.className = "message bot-message loading-message";
+  messageDiv.id = "loadingMessage";
   messageDiv.innerHTML = `
     <div class="message-avatar">🤖</div>
     <div class="message-content">
-      <div class="message-text">
-        <div class="progress-container">
-          <div class="progress-stages">
-            <div class="stage" data-stage="classify">
-              <span class="stage-icon">🔍</span>
-              <span class="stage-label">Classifying</span>
-              <span class="stage-status">⏳</span>
-            </div>
-            <div class="stage" data-stage="summarize">
-              <span class="stage-icon">📋</span>
-              <span class="stage-label">Summarizing</span>
-              <span class="stage-status">⏳</span>
-            </div>
-            <div class="stage" data-stage="generate">
-              <span class="stage-icon">💊</span>
-              <span class="stage-label">Generating</span>
-              <span class="stage-status">⏳</span>
-            </div>
-          </div>
-          <div class="progress-bar-outer">
-            <div class="progress-bar-inner" style="width: 0%"></div>
-          </div>
-          <div class="progress-text">Starting analysis...</div>
+      <div class="loading">
+        <span id="loadingText">Thinking</span>
+        <div class="loading-dots">
+          <div class="loading-dot"></div>
+          <div class="loading-dot"></div>
+          <div class="loading-dot"></div>
         </div>
       </div>
     </div>
@@ -159,36 +210,39 @@ function addLoadingMessage() {
   return messageDiv;
 }
 
-// Update progress stage
-function updateProgress(messageDiv, stage, progress, text) {
-  const progressBar = messageDiv.querySelector('.progress-bar-inner');
-  const progressText = messageDiv.querySelector('.progress-text');
-  const stages = messageDiv.querySelectorAll('.stage');
-  
-  if (progressBar) progressBar.style.width = `${progress}%`;
-  if (progressText) progressText.textContent = text;
-  
-  // Update stage indicators
-  stages.forEach(stageEl => {
-    const stageName = stageEl.getAttribute('data-stage');
-    const statusEl = stageEl.querySelector('.stage-status');
-    
-    if (stageName === stage) {
-      stageEl.classList.add('active');
-      statusEl.textContent = '⏳';
-    } else if (progress > getStageProgress(stageName)) {
-      stageEl.classList.add('completed');
-      statusEl.textContent = '✅';
-    }
-  });
-  
-  scrollToBottom();
+// Update loading message text
+function updateLoadingMessage(text) {
+  const loadingText = document.getElementById("loadingText");
+  if (loadingText) {
+    loadingText.textContent = text;
+  }
 }
 
-function getStageProgress(stage) {
-  const stages = { classify: 0, summarize: 33, generate: 66 };
-  return stages[stage] || 0;
+// Remove loading message
+function removeLoadingMessage() {
+  const loadingMsg = document.getElementById("loadingMessage");
+  if (loadingMsg) {
+    loadingMsg.remove();
+  }
 }
+
+// Add streaming message container
+function addStreamingMessage() {
+  const messageDiv = document.createElement("div");
+  messageDiv.className = "message bot-message streaming-message";
+  messageDiv.id = "streamingMessage";
+  messageDiv.innerHTML = `
+    <div class="message-avatar">🤖</div>
+    <div class="message-content">
+      <div id="classificationContainer" class="classification-result" style="display:none;"></div>
+      <div id="responseContainer" class="response-text"></div>
+    </div>
+  `;
+  chatMessages.appendChild(messageDiv);
+  scrollToBottom();
+  return messageDiv;
+}
+
 
 // Scroll chat to bottom
 function scrollToBottom() {
@@ -265,43 +319,45 @@ function formatRecommendation(recommendation) {
   `;
 }
 
-// Main analyze function
+// Main analyze function with streaming support
 async function analyzeCase() {
   const text = caseText.value.trim();
   
   // Validate input
   if (!text) {
-    addBotMessage(`
-      <div class="error-message">
-        ⚠️ <strong>Input Required:</strong><br>
-        Please enter patient clinical observations to analyze.
-      </div>
-    `);
+    addBotMessage(`<div class="error-message">⚠️ Please enter patient clinical observations to analyze.</div>`);
     return;
   }
   
   if (text.length < 50) {
-    addBotMessage(`
-      <div class="error-message">
-        ⚠️ <strong>Insufficient Information:</strong><br>
-        Please provide more detailed clinical observations (minimum 50 characters) for accurate analysis.
-      </div>
-    `);
+    addBotMessage(`<div class="error-message">⚠️ Please provide more detailed clinical observations (minimum 50 characters).</div>`);
     return;
   }
   
   // Disable button during analysis
   analyzeBtn.disabled = true;
-  analyzeBtn.textContent = "Analyzing...";
   
   // Add user message
   addUserMessage(text);
   
   // Clear input
   caseText.value = "";
+  autoResizeTextarea();
   
-  // Add loading message with progress
+  // Start analyzing state
+  currentState = State.ANALYZING;
   const loadingMsg = addLoadingMessage();
+  
+  // Failsafe timeout for analyzing state
+  const timeoutId = setTimeout(() => {
+    if (currentState === State.ANALYZING) {
+      console.warn('Analyzing timeout - transitioning to error state');
+      currentState = State.ERROR;
+      removeLoadingMessage();
+      addBotMessage(`<div class="error-message">⚠️ Analysis timeout. Please try again.</div>`);
+      analyzeBtn.disabled = false;
+    }
+  }, ANALYZING_TIMEOUT_MS);
   
   // Prepare payload
   const payload = {
@@ -311,149 +367,128 @@ async function analyzeCase() {
   };
   
   try {
-    // Simulate progress stages
-    updateProgress(loadingMsg, 'classify', 10, 'Loading classification model...');
-    await simulateDelay(500);
-    
-    updateProgress(loadingMsg, 'classify', 25, 'Analyzing symptoms and patterns...');
-    
-    // Call API
-    const response = await fetch(API_URL, {
+    // Use streaming endpoint
+    const response = await fetch(STREAM_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     
     if (!response.ok) {
-      loadingMsg.remove();
+      clearTimeout(timeoutId);
+      removeLoadingMessage();
       const errorData = await response.json();
       throw new Error(errorData.detail || "API request failed");
     }
     
-    updateProgress(loadingMsg, 'summarize', 50, 'Extracting clinical summary...');
-    await simulateDelay(300);
+    // Process Server-Sent Events stream
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let classificationData = null;
+    let fullRecommendation = '';
     
-    updateProgress(loadingMsg, 'generate', 75, 'Generating treatment recommendations...');
-    await simulateDelay(500);
+    // Create streaming message container (but keep it hidden initially)
+    let streamingMsg = null;
     
-    const data = await response.json();
-    
-    updateProgress(loadingMsg, 'generate', 100, 'Analysis complete!');
-    await simulateDelay(300);
-    
-    // Remove loading message
-    loadingMsg.remove();
-    
-    // Show classification with animation
-    if (autoClassify.checked) {
-      const classMsg = addBotMessage(formatClassification(data.classification));
-      classMsg.style.opacity = '0';
-      setTimeout(() => {
-        classMsg.style.transition = 'opacity 0.3s';
-        classMsg.style.opacity = '1';
-      }, 50);
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep incomplete line in buffer
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = JSON.parse(line.slice(6));
+          
+          if (data.type === 'classification') {
+            // Classification received - transition from analyzing to streaming
+            clearTimeout(timeoutId);
+            currentState = State.STREAMING;
+            removeLoadingMessage();
+            
+            // Create streaming container
+            streamingMsg = addStreamingMessage();
+            
+            // Store classification data
+            classificationData = data.classification;
+            
+            // Display classification
+            const classContainer = document.getElementById('classificationContainer');
+            if (classContainer && classificationData) {
+              classContainer.style.display = 'block';
+              let classHTML = `<h4>🔍 ${escapeHtml(classificationData.pathology)}</h4>`;
+              
+              if (classificationData.confidence) {
+                const confidencePercent = (classificationData.confidence * 100).toFixed(1);
+                classHTML += `
+                  <p>Confidence: ${confidencePercent}%</p>
+                  <div class="confidence-bar">
+                    <div class="confidence-fill" style="width: ${confidencePercent}%"></div>
+                  </div>
+                `;
+              }
+              classContainer.innerHTML = classHTML;
+            }
+            
+          } else if (data.type === 'text_chunk') {
+            // Stream text chunks
+            if (currentState === State.STREAMING) {
+              fullRecommendation += data.content;
+              const responseContainer = document.getElementById('responseContainer');
+              if (responseContainer) {
+                responseContainer.textContent = fullRecommendation;
+                scrollToBottom();
+              }
+            }
+            
+          } else if (data.type === 'complete') {
+            // Generation complete
+            currentState = State.COMPLETED;
+            
+            // Save to history (without exposing clinical summary)
+            lastAnalysisData = {
+              text,
+              classification: classificationData,
+              recommendation: fullRecommendation,
+              metadata: data.metadata,
+              timestamp: new Date().toISOString()
+            };
+            addToHistory(lastAnalysisData);
+            
+          } else if (data.type === 'error') {
+            throw new Error(data.error);
+          }
+        }
+      }
     }
     
-    // Show recommendation with streaming effect
-    await simulateDelay(400);
-    await streamRecommendation(data.recommendation);
-    
-    // Save to history
-    lastAnalysisData = {
-      text,
-      classification: data.classification,
-      recommendation: data.recommendation,
-      timestamp: new Date().toISOString()
-    };
-    
-    addToHistory(lastAnalysisData);
-    exportBtn.disabled = false;
-    
   } catch (error) {
-    // Remove loading message
-    loadingMsg.remove();
-    
-    // Show error
-    addBotMessage(`
-      <div class="error-message">
-        ❌ <strong>Analysis Error:</strong><br>
-        ${escapeHtml(error.message)}<br><br>
-        <strong>Action Required:</strong> Please review case description and retry, or contact technical support.
-      </div>
-    `);
-    
+    clearTimeout(timeoutId);
+    removeLoadingMessage();
+    currentState = State.ERROR;
+    addBotMessage(`<div class="error-message">❌ Error: ${escapeHtml(error.message)}</div>`);
     console.error("Analysis error:", error);
   } finally {
-    // Re-enable button
+    currentState = State.IDLE;
     analyzeBtn.disabled = false;
-    analyzeBtn.textContent = "Analyze Case 🔬";
   }
 }
 
-// Simulate delay for better UX
-function simulateDelay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// Stream recommendation text with typing effect
-async function streamRecommendation(text) {
-  const messageDiv = addBotMessage(`
-    <div class="recommendation-result">
-      <h3>💊 Treatment Recommendations</h3>
-      <div class="recommendation-text streaming"></div>
-      <div class="disclaimer-box">
-        <strong>⚠️ Professional Disclaimer:</strong><br>
-        This AI-assisted analysis is intended as a clinical decision support tool. Final diagnosis and treatment planning should incorporate comprehensive clinical assessment, patient history, and professional clinical judgment. This system is designed to augment, not replace, professional expertise.
-      </div>
-    </div>
-  `);
-  
-  const textDiv = messageDiv.querySelector('.recommendation-text');
-  const words = text.split(' ');
-  let currentText = '';
-  
-  for (let i = 0; i < words.length; i++) {
-    currentText += (i > 0 ? ' ' : '') + words[i];
-    textDiv.innerHTML = escapeHtml(currentText).replace(/\n/g, '<br>') + '<span class="cursor">▋</span>';
-    scrollToBottom();
-    
-    // Variable speed based on word length
-    const delay = words[i].length > 8 ? 40 : 25;
-    await simulateDelay(delay);
-  }
-  
-  // Remove cursor
-  textDiv.innerHTML = escapeHtml(currentText).replace(/\n/g, '<br>');
-  textDiv.classList.remove('streaming');
-}
-
-// Get device icon based on device type
-function getDeviceIcon(device) {
-  switch (device) {
-    case 'cuda':
-      return '⚡ GPU (CUDA)';
-    case 'mps':
-      return '🍎 GPU (Apple Silicon)';
-    case 'cpu':
-    default:
-      return '🐢 CPU';
-  }
-}
 
 // ==================== HISTORY MANAGEMENT ====================
 
-// Load history from localStorage
 function loadHistory() {
   try {
     const stored = localStorage.getItem(HISTORY_KEY);
     return stored ? JSON.parse(stored) : [];
   } catch (e) {
-    console.error('Error loading history:', e);
     return [];
   }
 }
 
-// Save history to localStorage
 function saveHistory() {
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(caseHistory));
@@ -462,21 +497,16 @@ function saveHistory() {
   }
 }
 
-// Add case to history
 function addToHistory(caseData) {
   const historyItem = {
     id: Date.now(),
     timestamp: new Date().toISOString(),
-    text: caseData.text.substring(0, 100) + (caseData.text.length > 100 ? '...' : ''),
-    fullText: caseData.text,
-    pathology: caseData.classification?.pathology || 'Unknown',
-    confidence: caseData.classification?.confidence || null,
-    recommendation: caseData.recommendation
+    preview: caseData.text.substring(0, 60) + '...',
+    fullData: caseData
   };
   
   caseHistory.unshift(historyItem);
   
-  // Keep only last 20 items
   if (caseHistory.length > 20) {
     caseHistory = caseHistory.slice(0, 20);
   }
@@ -485,25 +515,18 @@ function addToHistory(caseData) {
   renderHistory();
 }
 
-// Render history list
 function renderHistory() {
   if (caseHistory.length === 0) {
-    historyList.innerHTML = '<p class="empty-history">No previous cases</p>';
+    historyList.innerHTML = '<p class="empty-history">No conversations yet</p>';
     return;
   }
   
   historyList.innerHTML = caseHistory.map(item => `
-    <div class="history-item" data-id="${item.id}">
-      <div class="history-header-item">
-        <span class="history-pathology">${item.pathology}</span>
-        ${item.confidence ? `<span class="history-confidence">${(item.confidence * 100).toFixed(0)}%</span>` : ''}
-      </div>
-      <p class="history-text">${escapeHtml(item.text)}</p>
-      <span class="history-time">${formatTimestamp(item.timestamp)}</span>
-    </div>
+    <button class="history-item" data-id="${item.id}">
+      ${escapeHtml(item.preview)}
+    </button>
   `).join('');
   
-  // Add click handlers
   document.querySelectorAll('.history-item').forEach(item => {
     item.addEventListener('click', () => {
       const id = parseInt(item.getAttribute('data-id'));
@@ -512,29 +535,44 @@ function renderHistory() {
   });
 }
 
-// Load a history item into chat
 function loadHistoryItem(id) {
   const item = caseHistory.find(h => h.id === id);
   if (!item) return;
   
   clearChat();
-  addUserMessage(item.fullText);
+  addUserMessage(item.fullData.text);
   
-  if (item.pathology !== 'Unknown') {
-    addBotMessage(formatClassification({
-      pathology: item.pathology,
-      confidence: item.confidence,
-      all_probabilities: {}
-    }));
-  }
+  // Redisplay results (without clinical summary)
+  const { classification, recommendation } = item.fullData;
   
-  addBotMessage(formatRecommendation(item.recommendation));
+  // Create a message similar to the streaming result
+  const messageDiv = document.createElement("div");
+  messageDiv.className = "message bot-message";
+  messageDiv.innerHTML = `
+    <div class="message-avatar">🤖</div>
+    <div class="message-content">
+      <div class="classification-result">
+        <h4>🔍 ${escapeHtml(classification.pathology)}</h4>
+        ${classification.confidence ? `
+          <p>Confidence: ${(classification.confidence * 100).toFixed(1)}%</p>
+          <div class="confidence-bar">
+            <div class="confidence-fill" style="width: ${(classification.confidence * 100).toFixed(1)}%"></div>
+          </div>
+        ` : ''}
+      </div>
+      <div class="response-text">${escapeHtml(recommendation)}</div>
+    </div>
+  `;
+  chatMessages.appendChild(messageDiv);
+  scrollToBottom();
 }
 
-// Toggle history sidebar
-function toggleHistory() {
-  historySidebar.classList.toggle('collapsed');
-  toggleHistoryBtn.textContent = historySidebar.classList.contains('collapsed') ? '▶' : '◀';
+function clearHistory() {
+  if (confirm('Clear all conversation history?')) {
+    caseHistory = [];
+    saveHistory();
+    renderHistory();
+  }
 }
 
 // Clear all history
@@ -779,7 +817,6 @@ function downloadFile(blob, filename) {
 
 // ==================== DARK MODE ====================
 
-// Load dark mode preference
 function loadDarkMode() {
   const isDark = localStorage.getItem(DARK_MODE_KEY) === 'true';
   if (isDark) {
@@ -788,38 +825,31 @@ function loadDarkMode() {
   }
 }
 
-// Toggle dark mode
 function toggleDarkMode() {
   document.body.classList.toggle('dark-mode');
   const isDark = document.body.classList.contains('dark-mode');
   localStorage.setItem(DARK_MODE_KEY, isDark);
   darkModeToggle.textContent = isDark ? '☀️' : '🌙';
-  
-  // Smooth transition
-  document.body.style.transition = 'background-color 0.3s, color 0.3s';
-  setTimeout(() => {
-    document.body.style.transition = '';
-  }, 300);
 }
 
-// Load execution device status
+// ==================== DEVICE STATUS ====================
+
 async function loadExecutionDevice() {
   try {
     const response = await fetch(STATUS_URL);
     const data = await response.json();
 
     if (response.ok && data.device) {
-      executionDevice.textContent = getDeviceIcon(data.device.toLowerCase());
-      executionDevice.className = `device-${data.device.toLowerCase()}`;
+      const deviceMap = {
+        'cuda': '⚡ CUDA',
+        'mps': '🍎 MPS',
+        'cpu': '💻 CPU'
+      };
+      executionDevice.textContent = deviceMap[data.device.toLowerCase()] || data.device;
     } else {
-      executionDevice.textContent = 'Server not responding';
+      executionDevice.textContent = 'Offline';
     }
   } catch (error) {
-    executionDevice.textContent = 'Server disconnected';
-    console.error("Error loading device status:", error);
+    executionDevice.textContent = 'Offline';
   }
 }
-
-// Initialize
-toggleManualMode();
-loadExecutionDevice(); // Load device status on startup

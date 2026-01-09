@@ -224,19 +224,17 @@ def generate_treatment_recommendation_with_classification(
         print("⚠️ Using fallback recommendation (Llama model not loaded)")
     else:
         system_prompt = (
-            "You are an expert clinical psychologist providing evidence-based treatment "
-            "recommendations. Your recommendations should be specific, actionable, and "
-            "tailored to the diagnosed condition."
+            "You are an experienced clinical psychologist having a conversation with a colleague. "
+            "Provide clear, thoughtful guidance based on the case. Write naturally—like you're "
+            "explaining your clinical thinking to another professional. Avoid rigid sections or "
+            "bullet points unless they serve the explanation. Be warm but precise."
         )
         
         user_prompt = (
-            f"Diagnosed Pathology: {detected_pathology}\n"
-            f"Clinical Summary: {diagnosis_summary}\n\n"
-            "Generate a comprehensive, evidence-based treatment recommendation including:\n"
-            "1. Recommended psychotherapy approaches\n"
-            "2. Medication considerations (if applicable)\n"
-            "3. Lifestyle interventions\n"
-            "4. Follow-up and monitoring plan"
+            f"I'm seeing a patient who appears to have {detected_pathology}. "
+            f"Here's what I've observed: {diagnosis_summary}\n\n"
+            "What's your clinical recommendation? Think through therapeutic approaches, "
+            "any medication considerations, and what this person needs to focus on."
         )
         
         messages = [
@@ -265,10 +263,11 @@ def generate_treatment_recommendation_with_classification(
         
         output_tokens = llama_peft_model.generate(
             **input_ids,
-            max_new_tokens=256,
-            do_sample=False,
-            num_beams=1,
-            repetition_penalty=1.2,
+            max_new_tokens=300,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            repetition_penalty=1.15,
             eos_token_id=llama_tokenizer_obj.eos_token_id,
             pad_token_id=llama_tokenizer_obj.pad_token_id,
         )
@@ -386,19 +385,17 @@ def generate_treatment_manual_mode(
         print("⚠️ Using fallback recommendation (Llama model not loaded)")
     else:
         system_prompt = (
-            "You are an expert clinical psychologist. "
-            "You write clear, structured treatment recommendations, "
-            "always emphasizing safety and referral to a professional."
+            "You are an experienced clinical psychologist having a conversation with a colleague. "
+            "Provide clear, thoughtful guidance based on the case. Write naturally—like you're "
+            "explaining your clinical thinking to another professional. Avoid rigid sections or "
+            "bullet points unless they serve the explanation. Be warm but precise."
         )
         
         user_prompt = (
-            f"Detected/Selected pathology: {pathology}\n"
-            f"Diagnosis summary: {summary}\n\n"
-            "Generate a structured treatment recommendation with:\n"
-            "1. Psychoeducation\n"
-            "2. Recommended therapeutic approaches\n"
-            "3. Self-care guidelines\n"
-            "4. Warning signs that require urgent professional help."
+            f"I'm working with a patient presenting with {pathology}. "
+            f"Here's the clinical picture: {summary}\n\n"
+            "What would you recommend as the treatment approach? Walk me through "
+            "your thinking on therapy options and any other interventions."
         )
         
         messages = [
@@ -427,10 +424,11 @@ def generate_treatment_manual_mode(
         
         output = llama_peft_model.generate(
             **input_ids,
-            max_new_tokens=256,
-            do_sample=False,
-            num_beams=1,
-            repetition_penalty=1.2,
+            max_new_tokens=300,
+            do_sample=True,
+            temperature=0.7,
+            top_p=0.9,
+            repetition_penalty=1.15,
             eos_token_id=llama_tokenizer_obj.eos_token_id,
             pad_token_id=llama_tokenizer_obj.pad_token_id,
         )

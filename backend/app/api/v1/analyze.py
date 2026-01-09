@@ -3,8 +3,11 @@
 # This module defines the main API endpoints for analyzing clinical cases
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional
+import json
+import asyncio
 
 # Import the global model manager and device detection function
 from app.ml.models_loader import manager, get_device
@@ -151,3 +154,99 @@ def analyze_case(data: CaseRequest):
             status_code=500,
             detail=f"Error during analysis: {str(e)}"
         )
+
+
+@router.post("/analyze_stream")
+async def analyze_case_stream(data: CaseRequest):
+    """
+    Streaming endpoint: Analyze a clinical case with progressive response generation.
+    
+    Uses Server-Sent Events (SSE) to stream the response in real-time:
+    1. Emits classification result
+    2. Streams the final recommendation token-by-token
+    
+    The clinical summary is generated internally but NOT sent to the client.
+    
+    Args:
+        data: CaseRequest with clinical text and classification mode
+        
+    Returns:
+        StreamingResponse with text/event-stream content type
+    """
+    
+    # Validate input text length
+    if len(data.text.strip()) < MIN_TEXT_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Text too short. Minimum {MIN_TEXT_LENGTH} characters required."
+        )
+    
+    # Verify models are loaded
+    if not manager.check_models_loaded():
+        raise HTTPException(
+            status_code=503,
+            detail="Models not loaded. Please ensure all models are available."
+        )
+    
+    async def event_generator():
+        """Generate Server-Sent Events for streaming response."""
+        try:
+            # Run the full pipeline (blocking operation in async context)
+            result = await asyncio.to_thread(
+                manager.process_request,
+                text=data.text,
+                auto_classify=data.auto_classify,
+                pathology=data.pathology
+            )
+            
+            if "error" in result:
+                yield f"event: error\ndata: {json.dumps({'error': result['error']})}\n\n"
+                return
+            
+            # Step 1: Send classification (this transitions from "analyzing" to "streaming")
+            classification_data = {
+                "type": "classification",
+                "classification": result["classification"]
+            }
+            yield f"data: {json.dumps(classification_data)}\n\n"
+            
+            # Small delay for UX
+            await asyncio.sleep(0.1)
+            
+            # Step 2: Stream the recommendation word-by-word
+            # NOTE: Clinical summary is NOT sent to the client (internal use only)
+            recommendation = result["recommendation"]
+            words = recommendation.split()
+            
+            for i, word in enumerate(words):
+                chunk_data = {
+                    "type": "text_chunk",
+                    "content": word + (" " if i < len(words) - 1 else "")
+                }
+                yield f"data: {json.dumps(chunk_data)}\n\n"
+                # Simulate natural streaming pace
+                await asyncio.sleep(0.03)
+            
+            # Step 3: Send completion event
+            completion_data = {
+                "type": "complete",
+                "metadata": result.get("metadata", {})
+            }
+            yield f"data: {json.dumps(completion_data)}\n\n"
+            
+        except Exception as e:
+            error_data = {
+                "type": "error",
+                "error": str(e)
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
