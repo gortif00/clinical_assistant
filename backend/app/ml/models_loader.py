@@ -734,32 +734,44 @@ class ModelManager:
             # ========================================
             # CREATE PROMPT FOR LLAMA (uses summary for better context)
             # ========================================
-            # Professional clinical report formatting
+            # Publication-ready clinical report formatting
             system_prompt = (
-                "You are a senior clinical psychologist preparing a formal clinical assessment report. "
-                "Write in professional medical/psychological language suitable for clinical documentation. "
-                "Structure your response with clear section headings (not bold placeholders). "
-                "Use short paragraphs and maintain formal academic tone throughout."
+                "You are a senior clinical psychologist preparing a formal clinical case report for publication or peer review. "
+                "Use professional medical/psychological language with an academic tone (formal, objective, precise). "
+                "Structure your report with clear section titles, horizontal line separators (⸻), and numbered lists where appropriate. "
+                "Maintain evidence-based language throughout. No emojis, no casual language, no markdown asterisks."
             )
             
-            # User prompt requests structured clinical report
+            # User prompt requests publication-ready structured report
             user_prompt = (
-                f"Patient Diagnosis: {detected_pathology}\n\n"
-                f"Clinical Assessment Summary:\n{diagnosis_summary}\n\n"
-                "Prepare a professional treatment recommendation report with the following structure:\n\n"
-                "Case Overview\n"
-                "Briefly contextualize the diagnosis and clinical presentation.\n\n"
-                "Therapeutic Rationale\n"
-                "Explain the evidence-based reasoning for the recommended approach.\n\n"
-                "Psychotherapy Approaches\n"
-                f"Specify 2-3 evidence-based modalities effective for {detected_pathology}. "
-                "Provide brief clinical justification for each.\n\n"
-                "Pharmacological Considerations\n"
-                "List appropriate medication classes if indicated, with monitoring requirements.\n\n"
-                "Lifestyle and Supportive Interventions\n"
-                "Provide specific, actionable recommendations for sleep, exercise, stress management, and social support.\n\n"
-                "Use clear section headings (e.g., 'Case Overview:', 'Psychotherapy Approaches:'). "
-                "Write in formal clinical language. Keep paragraphs concise. Avoid markdown bold formatting."
+                f"Prepare a publication-ready clinical case summary for {detected_pathology} using the following format:\n\n"
+                f"Clinical Assessment Data:\n{diagnosis_summary}\n\n"
+                "Required Format:\n\n"
+                "Clinical Case Summary: [Disorder Name]\n\n"
+                "⸻\n\n"
+                "Case Overview\n\n"
+                "Provide a comprehensive overview of the diagnosis, clinical features, and relevant history (2-3 paragraphs). "
+                "Use formal clinical language. Mention key diagnostic criteria and distinguishing features.\n\n"
+                "⸻\n\n"
+                "Diagnostic Considerations\n\n"
+                "Briefly discuss the diagnostic implications, course, and need for intervention (1-2 paragraphs).\n\n"
+                "⸻\n\n"
+                "Therapeutic Rationale\n\n"
+                "Explain the evidence-based reasoning for a multimodal treatment approach (1-2 paragraphs).\n\n"
+                "⸻\n\n"
+                "Proposed Treatment Plan\n\n"
+                "Use a numbered list (1., 2., 3., etc.) with the following components:\n"
+                "1. Mood-Stabilizing Pharmacotherapy (or appropriate medication class)\n"
+                f"2. Psychotherapeutic Interventions (list 2-3 evidence-based therapies for {detected_pathology})\n"
+                "3. Emotional Regulation Strategies\n"
+                "4. Exercise and Physical Activity\n"
+                "5. Social Support Network Management\n\n"
+                "For each item, provide 1-2 sentences of clinical justification.\n\n"
+                "⸻\n\n"
+                "Evidence Base\n\n"
+                "Conclude with a brief statement affirming the empirical support and clinical best practices (1-2 sentences).\n\n"
+                "Important: Use horizontal line separators (⸻) between major sections. "
+                "Write in formal academic style. Use line breaks for readability. No markdown formatting."
             )
             
             messages = [
