@@ -190,6 +190,9 @@ function addBotMessage(html, className = "") {
 
 // Add loading message
 function addLoadingMessage() {
+  // CRITICAL: Remove any existing loading messages first
+  removeLoadingMessage();
+  
   const messageDiv = document.createElement("div");
   messageDiv.className = "message bot-message loading-message";
   messageDiv.id = "loadingMessage";
@@ -221,10 +224,15 @@ function updateLoadingMessage(text) {
 
 // Remove loading message
 function removeLoadingMessage() {
+  // Remove by ID
   const loadingMsg = document.getElementById("loadingMessage");
   if (loadingMsg) {
     loadingMsg.remove();
   }
+  
+  // CRITICAL: Also remove any orphaned loading messages by class
+  const allLoadingMsgs = document.querySelectorAll(".loading-message");
+  allLoadingMsgs.forEach(msg => msg.remove());
 }
 
 // Add streaming message container
@@ -294,16 +302,6 @@ function formatClassification(classification) {
   
   html += `</div>`;
   return html;
-}
-
-// Format summary
-function formatSummary(summary) {
-  return `
-    <div class="summary-result">
-      <h3>📋 Clinical Summary</h3>
-      <p>${escapeHtml(summary)}</p>
-    </div>
-  `;
 }
 
 // Format recommendation
@@ -432,7 +430,10 @@ async function analyzeCase() {
               if (currentState === State.ANALYZING && currentRequestId === requestId) {
                 clearTimeout(timeoutId);
                 currentState = State.STREAMING;
+                
+                // CRITICAL: Remove loading message IMMEDIATELY
                 removeLoadingMessage();
+                
                 console.log(`🟢 ${requestId}: ANALYZING → STREAMING`);
                 
                 streamingMsg = addStreamingMessage();
