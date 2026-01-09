@@ -14,6 +14,7 @@ const State = {
 };
 
 let currentState = State.IDLE;
+let currentRequestId = null;  // CRITICAL: Track active request
 const ANALYZING_TIMEOUT_MS = 30000; // 30 second failsafe
 
 // DOM Elements
@@ -323,6 +324,12 @@ function formatRecommendation(recommendation) {
 async function analyzeCase() {
   const text = caseText.value.trim();
   
+  // CRITICAL: Prevent duplicate calls if already processing
+  if (currentState !== State.IDLE) {
+    console.warn(`Ignoring request - already in state: ${currentState}`);
+    return;
+  }
+  
   // Validate input
   if (!text) {
     addBotMessage(`<div class="error-message">⚠️ Please enter patient clinical observations to analyze.</div>`);
@@ -333,6 +340,12 @@ async function analyzeCase() {
     addBotMessage(`<div class="error-message">⚠️ Please provide more detailed clinical observations (minimum 50 characters).</div>`);
     return;
   }
+  
+  // Generate unique request ID
+  const requestId = Date.now() + Math.random();
+  currentRequestId = requestId;
+  
+  console.log(`🔵 Starting request ${requestId}`);
   
   // Disable button during analysis
   analyzeBtn.disabled = true;
@@ -348,11 +361,12 @@ async function analyzeCase() {
   currentState = State.ANALYZING;
   const loadingMsg = addLoadingMessage();
   
-  // Failsafe timeout for analyzing state
+  // Failsafe timeout with request ID validation
   const timeoutId = setTimeout(() => {
-    if (currentState === State.ANALYZING) {
-      console.warn('Analyzing timeout - transitioning to error state');
+    if (currentState === State.ANALYZING && currentRequestId === requestId) {
+      console.error(`⏱️ Timeout for request ${requestId}`);
       currentState = State.ERROR;
+      currentRequestId = null;
       removeLoadingMessage();
       addBotMessage(`<div class="error-message">⚠️ Analysis timeout. Please try again.</div>`);
       analyzeBtn.disabled = false;
@@ -381,99 +395,129 @@ async function analyzeCase() {
       throw new Error(errorData.detail || "API request failed");
     }
     
-    // Process Server-Sent Events stream
+    // Process Server-Sent Events stream with strict state validation
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
     let classificationData = null;
     let fullRecommendation = '';
-    
-    // Create streaming message container (but keep it hidden initially)
     let streamingMsg = null;
+    let completionReceived = false;
     
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // Keep incomplete line in buffer
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = JSON.parse(line.slice(6));
-          
-          if (data.type === 'classification') {
-            // Classification received - transition from analyzing to streaming
-            clearTimeout(timeoutId);
-            currentState = State.STREAMING;
-            removeLoadingMessage();
+    try {
+      while (true) {
+        // Verify this request is still active
+        if (currentRequestId !== requestId) {
+          console.warn(`⚠️ Stale request ${requestId} - aborting`);
+          await reader.cancel();
+          break;
+        }
+        
+        const { done, value } = await reader.read();
+        if (done) {
+          console.log(`✅ Stream ended for request ${requestId}`);
+          break;
+        }
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
             
-            // Create streaming container
-            streamingMsg = addStreamingMessage();
-            
-            // Store classification data
-            classificationData = data.classification;
-            
-            // Display classification
-            const classContainer = document.getElementById('classificationContainer');
-            if (classContainer && classificationData) {
-              classContainer.style.display = 'block';
-              let classHTML = `<h4>🔍 ${escapeHtml(classificationData.pathology)}</h4>`;
+            if (data.type === 'classification') {
+              // CRITICAL: Transition from ANALYZING to STREAMING (one-way)
+              if (currentState === State.ANALYZING && currentRequestId === requestId) {
+                clearTimeout(timeoutId);
+                currentState = State.STREAMING;
+                removeLoadingMessage();
+                console.log(`🟢 ${requestId}: ANALYZING → STREAMING`);
+                
+                streamingMsg = addStreamingMessage();
+                classificationData = data.classification;
+                
+                const classContainer = document.getElementById('classificationContainer');
+                if (classContainer && classificationData) {
+                  classContainer.style.display = 'block';
+                  let classHTML = `<h4>🔍 ${escapeHtml(classificationData.pathology)}</h4>`;
+                  
+                  if (classificationData.confidence) {
+                    const confidencePercent = (classificationData.confidence * 100).toFixed(1);
+                    classHTML += `
+                      <p>Confidence: ${confidencePercent}%</p>
+                      <div class="confidence-bar">
+                        <div class="confidence-fill" style="width: ${confidencePercent}%"></div>
+                      </div>
+                    `;
+                  }
+                  classContainer.innerHTML = classHTML;
+                }
+              }
               
-              if (classificationData.confidence) {
-                const confidencePercent = (classificationData.confidence * 100).toFixed(1);
-                classHTML += `
-                  <p>Confidence: ${confidencePercent}%</p>
-                  <div class="confidence-bar">
-                    <div class="confidence-fill" style="width: ${confidencePercent}%"></div>
-                  </div>
-                `;
+            } else if (data.type === 'text_chunk') {
+              // Only process if in STREAMING state
+              if (currentState === State.STREAMING && currentRequestId === requestId) {
+                fullRecommendation += data.content;
+                const responseContainer = document.getElementById('responseContainer');
+                if (responseContainer) {
+                  responseContainer.textContent = fullRecommendation;
+                  scrollToBottom();
+                }
               }
-              classContainer.innerHTML = classHTML;
-            }
-            
-          } else if (data.type === 'text_chunk') {
-            // Stream text chunks
-            if (currentState === State.STREAMING) {
-              fullRecommendation += data.content;
-              const responseContainer = document.getElementById('responseContainer');
-              if (responseContainer) {
-                responseContainer.textContent = fullRecommendation;
-                scrollToBottom();
+              
+            } else if (data.type === 'complete') {
+              // CRITICAL: Mark completion and transition to COMPLETED
+              if (currentRequestId === requestId && !completionReceived) {
+                completionReceived = true;
+                clearTimeout(timeoutId);
+                currentState = State.COMPLETED;
+                console.log(`🏁 ${requestId}: STREAMING → COMPLETED`);
+                
+                lastAnalysisData = {
+                  text,
+                  classification: classificationData,
+                  recommendation: fullRecommendation,
+                  metadata: data.metadata,
+                  timestamp: new Date().toISOString()
+                };
+                addToHistory(lastAnalysisData);
               }
+              
+            } else if (data.type === 'error') {
+              throw new Error(data.error);
             }
-            
-          } else if (data.type === 'complete') {
-            // Generation complete
-            currentState = State.COMPLETED;
-            
-            // Save to history (without exposing clinical summary)
-            lastAnalysisData = {
-              text,
-              classification: classificationData,
-              recommendation: fullRecommendation,
-              metadata: data.metadata,
-              timestamp: new Date().toISOString()
-            };
-            addToHistory(lastAnalysisData);
-            
-          } else if (data.type === 'error') {
-            throw new Error(data.error);
           }
         }
+      }
+    } finally {
+      // Ensure stream is closed
+      try {
+        await reader.cancel();
+      } catch (e) {
+        // Already closed
       }
     }
     
   } catch (error) {
     clearTimeout(timeoutId);
     removeLoadingMessage();
-    currentState = State.ERROR;
-    addBotMessage(`<div class="error-message">❌ Error: ${escapeHtml(error.message)}</div>`);
-    console.error("Analysis error:", error);
+    
+    // Only handle error if this request is still active
+    if (currentRequestId === requestId) {
+      currentState = State.ERROR;
+      console.error(`❌ Error in request ${requestId}:`, error);
+      addBotMessage(`<div class="error-message">❌ Error: ${escapeHtml(error.message)}</div>`);
+    }
   } finally {
-    currentState = State.IDLE;
-    analyzeBtn.disabled = false;
+    // Only reset to idle if this request is still active
+    if (currentRequestId === requestId) {
+      currentState = State.IDLE;
+      currentRequestId = null;
+      analyzeBtn.disabled = false;
+      console.log(`🔵 Request ${requestId} finished - state reset to IDLE`);
+    }
   }
 }
 

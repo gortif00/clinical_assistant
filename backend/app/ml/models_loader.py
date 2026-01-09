@@ -450,6 +450,131 @@ class ModelManager:
             'llama_tokenizer': self.gen_tokenizer
         }
     
+    def process_request_streaming(self, text: str, auto_classify: bool = True, pathology: str = None):
+        """
+        STREAMING-OPTIMIZED pipeline: SKIPS summary generation entirely.
+        
+        For streaming endpoints only. Does classification + recommendation,
+        but summary is NOT generated (saves ~2-3 seconds and prevents leakage).
+        
+        Returns:
+            dict: classification + recommendation only (NO summary field)
+        """
+        import time
+        from app.utils.text_cleaning import clean_text
+        from app.core.config import LABEL_MAP
+        import numpy as np
+        
+        inicio = time.time()
+        
+        # STAGE 1: Classification (same as regular pipeline)
+        if auto_classify:
+            print("\n[STREAM MODE - STAGE 1/2] 🔍 Classifying pathology...")
+            cleaned_text = clean_text(text)
+            inputs = self.cls_tokenizer(
+                cleaned_text,
+                padding=True,
+                truncation=True,
+                max_length=512,
+                return_tensors="pt"
+            ).to(self.cls_model.device)
+            
+            with torch.no_grad():
+                outputs = self.cls_model(**inputs)
+                probs = torch.softmax(outputs.logits, dim=-1).cpu().numpy()[0]
+            
+            pred_id = int(np.argmax(probs))
+            detected_pathology = LABEL_MAP[pred_id]
+            confidence = float(probs[pred_id])
+            all_probs = {LABEL_MAP[i]: float(p) for i, p in enumerate(probs)}
+            
+            print(f"✅ Detected: {detected_pathology} ({confidence:.2%})")
+        else:
+            print(f"\n[STREAM MODE - MANUAL] ℹ️ Using pathology: {pathology}")
+            detected_pathology = pathology
+            confidence = None
+            all_probs = {}
+            cleaned_text = clean_text(text)
+        
+        # STAGE 2: SKIP SUMMARY - Go directly to recommendation
+        # Use cleaned text directly as context (no T5 summary)
+        print("\n[STREAM MODE - STAGE 2/2] 💊 Generating recommendation (NO SUMMARY)...")
+        
+        if self.gen_model is None or self.gen_tokenizer is None:
+            final_recommendation = (
+                f"⚠️ Llama model unavailable. Basic recommendation for {detected_pathology}:\n\n"
+                "Please consult with a licensed mental health professional."
+            )
+            print("⚠️ Using fallback recommendation")
+        else:
+            # Simplified prompt WITHOUT summary dependency
+            system_prompt = (
+                "You are an experienced clinical psychologist. Provide clear, conversational "
+                "guidance. Avoid rigid formatting. Write like you're explaining to a colleague."
+            )
+            
+            user_prompt = (
+                f"Patient presents with {detected_pathology}. "
+                f"Observations: {cleaned_text[:500]}\n\n"  # Use truncated original text
+                "What's your clinical recommendation? Focus on therapeutic approaches "
+                "and practical interventions."
+            )
+            
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+            
+            prompt = self.gen_tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True
+            )
+            
+            input_ids = self.gen_tokenizer(
+                prompt,
+                return_tensors="pt",
+                truncation=True,
+                max_length=1536
+            ).to(self.gen_model.device)
+            
+            with torch.no_grad():
+                output_tokens = self.gen_model.generate(
+                    **input_ids,
+                    max_new_tokens=350,  # HARD LIMIT
+                    min_new_tokens=100,
+                    do_sample=True,
+                    temperature=0.7,
+                    top_p=0.9,
+                    repetition_penalty=1.15,
+                    eos_token_id=self.gen_tokenizer.eos_token_id,
+                    pad_token_id=self.gen_tokenizer.pad_token_id,
+                    early_stopping=True,  # CRITICAL: Stop at EOS
+                )
+            
+            final_recommendation = self.gen_tokenizer.decode(
+                output_tokens[0][input_ids["input_ids"].shape[1]:],
+                skip_special_tokens=True
+            ).strip()
+            
+            print("✅ Recommendation generated (streaming-ready)")
+        
+        fin = time.time()
+        print(f"\n⏱️ Streaming pipeline time: {fin - inicio:.2f} seconds")
+        
+        return {
+            "classification": {
+                "pathology": detected_pathology,
+                "confidence": confidence,
+                "all_probabilities": all_probs
+            },
+            "recommendation": final_recommendation,  # NO SUMMARY FIELD
+            "metadata": {
+                "processing_time": round(fin - inicio, 2),
+                "mode": "streaming"
+            }
+        }
+    
     def process_request(self, text: str, auto_classify: bool = True, pathology: str = None):
         """
         Execute the complete 3-stage ML pipeline for clinical case analysis.
@@ -679,20 +804,24 @@ class ModelManager:
                 max_length=2048  # Allow longer prompts
             ).to(self.gen_model.device)
             
-            # Enhanced generation parameters for better quality with short inputs
+            # Enhanced generation parameters with EXPLICIT STOP CONDITIONS
             with torch.no_grad():
                 output_tokens = self.gen_model.generate(
                     **input_ids,
-                    max_new_tokens=800,  # Increased to 800 to allow complete 4-section responses
-                    min_new_tokens=250,  # Ensure substantial output
+                    max_new_tokens=400,  # HARD LIMIT to prevent runaway generation
+                    min_new_tokens=150,  # Minimum for quality
                     do_sample=True,
-                    temperature=0.8,  # Slightly higher for more diverse output
-                    top_p=0.92,  # Slightly higher for better coverage
-                    top_k=50,  # Add top_k sampling for better coherence
-                    repetition_penalty=1.15,  # Prevent repetitive text
-                    no_repeat_ngram_size=3,  # Prevent 3-gram repetition
+                    temperature=0.7,  # Controlled temperature for consistency
+                    top_p=0.9,
+                    top_k=50,
+                    repetition_penalty=1.15,
+                    no_repeat_ngram_size=3,
                     eos_token_id=self.gen_tokenizer.eos_token_id,
-                    pad_token_id=self.gen_tokenizer.pad_token_id,  # Explicit pad token
+                    pad_token_id=self.gen_tokenizer.pad_token_id,
+                    # CRITICAL: Force early stopping when EOS is reached
+                    early_stopping=True,
+                    # Add explicit stop strings
+                    stop_strings=["\n\n---", "<|end|>", "<END>"],
                 )
             
             # Decode generated tokens to text

@@ -191,31 +191,36 @@ async def analyze_case_stream(data: CaseRequest):
     async def event_generator():
         """Generate Server-Sent Events for streaming response."""
         try:
-            # Run the full pipeline (blocking operation in async context)
+            # CRITICAL FIX: Use streaming-optimized pipeline that SKIPS summary
             result = await asyncio.to_thread(
-                manager.process_request,
+                manager.process_request_streaming,  # NEW method - no summary generation
                 text=data.text,
                 auto_classify=data.auto_classify,
                 pathology=data.pathology
             )
             
             if "error" in result:
-                yield f"event: error\ndata: {json.dumps({'error': result['error']})}\n\n"
+                yield f"data: {json.dumps({'type': 'error', 'error': result['error']})}\n\n"
                 return
             
-            # Step 1: Send classification (this transitions from "analyzing" to "streaming")
+            # Step 1: Send classification IMMEDIATELY (exits analyzing state)
             classification_data = {
                 "type": "classification",
                 "classification": result["classification"]
             }
             yield f"data: {json.dumps(classification_data)}\n\n"
             
-            # Small delay for UX
-            await asyncio.sleep(0.1)
+            # Small UX delay
+            await asyncio.sleep(0.05)
             
-            # Step 2: Stream the recommendation word-by-word
-            # NOTE: Clinical summary is NOT sent to the client (internal use only)
+            # Step 2: Stream recommendation with controlled pacing
             recommendation = result["recommendation"]
+            
+            # Verify we have content to stream
+            if not recommendation or len(recommendation.strip()) == 0:
+                yield f"data: {json.dumps({'type': 'error', 'error': 'Empty recommendation generated'})}\n\n"
+                return
+            
             words = recommendation.split()
             
             for i, word in enumerate(words):
@@ -224,15 +229,17 @@ async def analyze_case_stream(data: CaseRequest):
                     "content": word + (" " if i < len(words) - 1 else "")
                 }
                 yield f"data: {json.dumps(chunk_data)}\n\n"
-                # Simulate natural streaming pace
-                await asyncio.sleep(0.03)
+                await asyncio.sleep(0.025)  # Faster pacing
             
-            # Step 3: Send completion event
+            # Step 3: EXPLICIT COMPLETION EVENT (critical for state transition)
             completion_data = {
                 "type": "complete",
                 "metadata": result.get("metadata", {})
             }
             yield f"data: {json.dumps(completion_data)}\n\n"
+            
+            # CRITICAL: Ensure stream terminates cleanly
+            print("✅ Stream completed successfully")
             
         except Exception as e:
             error_data = {
