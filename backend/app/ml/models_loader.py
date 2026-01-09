@@ -734,20 +734,32 @@ class ModelManager:
             # ========================================
             # CREATE PROMPT FOR LLAMA (uses summary for better context)
             # ========================================
-            # Natural, conversational prompting for human-like responses
+            # Professional clinical report formatting
             system_prompt = (
-                "You are an experienced clinical psychologist having a conversation with a colleague. "
-                "Provide clear, thoughtful guidance based on the case. Write naturally—like you're "
-                "explaining your clinical thinking to another professional. Avoid rigid sections or "
-                "bullet points unless they serve the explanation. Be warm but precise."
+                "You are a senior clinical psychologist preparing a formal clinical assessment report. "
+                "Write in professional medical/psychological language suitable for clinical documentation. "
+                "Structure your response with clear section headings (not bold placeholders). "
+                "Use short paragraphs and maintain formal academic tone throughout."
             )
             
-            # User prompt leverages the summary for rich context
+            # User prompt requests structured clinical report
             user_prompt = (
-                f"I'm seeing a patient who appears to have {detected_pathology}. "
-                f"Here's what I've observed: {diagnosis_summary}\n\n"
-                "What's your clinical recommendation? Think through therapeutic approaches, "
-                "any medication considerations, and what this person needs to focus on."
+                f"Patient Diagnosis: {detected_pathology}\n\n"
+                f"Clinical Assessment Summary:\n{diagnosis_summary}\n\n"
+                "Prepare a professional treatment recommendation report with the following structure:\n\n"
+                "Case Overview\n"
+                "Briefly contextualize the diagnosis and clinical presentation.\n\n"
+                "Therapeutic Rationale\n"
+                "Explain the evidence-based reasoning for the recommended approach.\n\n"
+                "Psychotherapy Approaches\n"
+                f"Specify 2-3 evidence-based modalities effective for {detected_pathology}. "
+                "Provide brief clinical justification for each.\n\n"
+                "Pharmacological Considerations\n"
+                "List appropriate medication classes if indicated, with monitoring requirements.\n\n"
+                "Lifestyle and Supportive Interventions\n"
+                "Provide specific, actionable recommendations for sleep, exercise, stress management, and social support.\n\n"
+                "Use clear section headings (e.g., 'Case Overview:', 'Psychotherapy Approaches:'). "
+                "Write in formal clinical language. Keep paragraphs concise. Avoid markdown bold formatting."
             )
             
             messages = [
@@ -765,40 +777,6 @@ class ModelManager:
                 prompt, 
                 return_tensors="pt", 
                 truncation=True,
-                max_length=2048  # Allow longer prompts
-            ).to(self.gen_model.device)
-            
-            # Enhanced generation with EXPLICIT STOP CONDITIONS and natural prompting
-            # Use conversational prompt that leverages the summary context
-            system_prompt = (
-                "You are an experienced clinical psychologist having a conversation with a colleague. "
-                "Provide clear, thoughtful guidance based on the case. Write naturally—like you're "
-                "explaining your clinical thinking to another professional. Avoid rigid sections or "
-                "bullet points unless they serve the explanation. Be warm but precise."
-            )
-            
-            user_prompt = (
-                f"I'm seeing a patient who appears to have {detected_pathology}. "
-                f"Here's what I've observed: {diagnosis_summary}\n\n"
-                "What's your clinical recommendation? Think through therapeutic approaches, "
-                "any medication considerations, and what this person needs to focus on."
-            )
-            
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ]
-            
-            prompt = self.gen_tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True
-            )
-            
-            input_ids = self.gen_tokenizer(
-                prompt,
-                return_tensors="pt",
-                truncation=True,
                 max_length=2048
             ).to(self.gen_model.device)
             
@@ -806,8 +784,8 @@ class ModelManager:
             with torch.no_grad():
                 output_tokens = self.gen_model.generate(
                     **input_ids,
-                    max_new_tokens=350,  # HARD LIMIT to prevent runaway generation
-                    min_new_tokens=100,  # Minimum for quality
+                    max_new_tokens=400,  # Increased for structured report
+                    min_new_tokens=150,  # Minimum for quality report
                     do_sample=True,
                     temperature=0.7,  # Controlled temperature for consistency
                     top_p=0.9,
@@ -815,7 +793,6 @@ class ModelManager:
                     no_repeat_ngram_size=3,
                     eos_token_id=self.gen_tokenizer.eos_token_id,
                     pad_token_id=self.gen_tokenizer.pad_token_id,
-                    # CRITICAL: Force early stopping when EOS is reached
                     early_stopping=True,
                 )
             
