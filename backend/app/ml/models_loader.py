@@ -732,59 +732,23 @@ class ModelManager:
             print("⚠️ Using fallback recommendation")
         else:
             # ========================================
-            # CREATE PROMPT FOR LLAMA
+            # CREATE PROMPT FOR LLAMA (uses summary for better context)
             # ========================================
-            # System prompt: Define the AI's role and behavior
+            # Natural, conversational prompting for human-like responses
             system_prompt = (
-                "You are an expert clinical psychologist with extensive experience in mental health treatment. "
-                "You provide evidence-based, comprehensive treatment recommendations tailored to specific diagnoses. "
-                "Your recommendations are always complete, detailed, and professionally formatted."
+                "You are an experienced clinical psychologist having a conversation with a colleague. "
+                "Provide clear, thoughtful guidance based on the case. Write naturally—like you're "
+                "explaining your clinical thinking to another professional. Avoid rigid sections or "
+                "bullet points unless they serve the explanation. Be warm but precise."
             )
             
-            # User prompt: Provide context and request specific output format
-            # Enhanced with more explicit instructions for shorter inputs
-            if detected_pathology == "no_significant_pathology":
-                # Special prompt for healthy/normal cases
-                user_prompt = (
-                    f"**Assessment:** NO SIGNIFICANT PATHOLOGY DETECTED\n\n"
-                    f"**Clinical Summary:**\n{diagnosis_summary}\n\n"
-                    "Based on this assessment showing no significant mental health pathology, provide wellness recommendations. "
-                    "Structure your response with the following sections:\n\n"
-                    "**1. Mental Health Status:**\n"
-                    "   - Acknowledge that no significant pathology was detected\n"
-                    "   - Explain that symptoms appear within normal range\n\n"
-                    "**2. Preventive Mental Health Practices:**\n"
-                    "   - Recommend evidence-based practices to maintain mental wellness\n"
-                    "   - Include stress management and resilience-building strategies\n\n"
-                    "**3. Lifestyle & Self-Care:**\n"
-                    "   - Provide specific recommendations for continued well-being\n"
-                    "   - Include sleep hygiene, exercise, social connection, and mindfulness\n\n"
-                    "**4. Monitoring & When to Seek Help:**\n"
-                    "   - List warning signs that would warrant professional consultation\n"
-                    "   - Provide guidance on when to reassess mental health\n\n"
-                    "Provide a complete, encouraging response covering ALL sections above."
-                )
-            else:
-                # Standard prompt for diagnosed pathologies
-                user_prompt = (
-                    f"**Patient Diagnosis:** {detected_pathology.upper()}\n\n"
-                    f"**Clinical Assessment:**\n{diagnosis_summary}\n\n"
-                    f"Based on this {detected_pathology} diagnosis, provide a complete, evidence-based treatment plan. "
-                    "Structure your response with the following sections:\n\n"
-                    "**1. Psychotherapy Approaches:**\n"
-                    f"   - Specify 2-3 evidence-based therapy modalities effective for {detected_pathology}\n"
-                    "   - Explain briefly why each approach is recommended\n\n"
-                    "**2. Medication Considerations:**\n"
-                    "   - List appropriate medication classes if indicated\n"
-                    "   - Include monitoring requirements\n\n"
-                    "**3. Lifestyle & Self-Care Interventions:**\n"
-                    "   - Provide specific, actionable recommendations\n"
-                    "   - Include sleep, exercise, stress management, and social support\n\n"
-                    "**4. Follow-up Plan:**\n"
-                    "   - Specify initial follow-up timeline\n"
-                    "   - Define success criteria and adjustment protocols\n\n"
-                    "Provide a complete response covering ALL sections above."
-                )
+            # User prompt leverages the summary for rich context
+            user_prompt = (
+                f"I'm seeing a patient who appears to have {detected_pathology}. "
+                f"Here's what I've observed: {diagnosis_summary}\n\n"
+                "What's your clinical recommendation? Think through therapeutic approaches, "
+                "any medication considerations, and what this person needs to focus on."
+            )
             
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -804,24 +768,55 @@ class ModelManager:
                 max_length=2048  # Allow longer prompts
             ).to(self.gen_model.device)
             
-            # Enhanced generation parameters with EXPLICIT STOP CONDITIONS
+            # Enhanced generation with EXPLICIT STOP CONDITIONS and natural prompting
+            # Use conversational prompt that leverages the summary context
+            system_prompt = (
+                "You are an experienced clinical psychologist having a conversation with a colleague. "
+                "Provide clear, thoughtful guidance based on the case. Write naturally—like you're "
+                "explaining your clinical thinking to another professional. Avoid rigid sections or "
+                "bullet points unless they serve the explanation. Be warm but precise."
+            )
+            
+            user_prompt = (
+                f"I'm seeing a patient who appears to have {detected_pathology}. "
+                f"Here's what I've observed: {diagnosis_summary}\n\n"
+                "What's your clinical recommendation? Think through therapeutic approaches, "
+                "any medication considerations, and what this person needs to focus on."
+            )
+            
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+            
+            prompt = self.gen_tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True
+            )
+            
+            input_ids = self.gen_tokenizer(
+                prompt,
+                return_tensors="pt",
+                truncation=True,
+                max_length=2048
+            ).to(self.gen_model.device)
+            
+            # Generation parameters with EXPLICIT STOP CONDITIONS
             with torch.no_grad():
                 output_tokens = self.gen_model.generate(
                     **input_ids,
-                    max_new_tokens=400,  # HARD LIMIT to prevent runaway generation
-                    min_new_tokens=150,  # Minimum for quality
+                    max_new_tokens=350,  # HARD LIMIT to prevent runaway generation
+                    min_new_tokens=100,  # Minimum for quality
                     do_sample=True,
                     temperature=0.7,  # Controlled temperature for consistency
                     top_p=0.9,
-                    top_k=50,
                     repetition_penalty=1.15,
                     no_repeat_ngram_size=3,
                     eos_token_id=self.gen_tokenizer.eos_token_id,
                     pad_token_id=self.gen_tokenizer.pad_token_id,
                     # CRITICAL: Force early stopping when EOS is reached
                     early_stopping=True,
-                    # Add explicit stop strings
-                    stop_strings=["\n\n---", "<|end|>", "<END>"],
                 )
             
             # Decode generated tokens to text

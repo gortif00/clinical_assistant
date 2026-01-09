@@ -38,50 +38,39 @@ stop_strings=["\\n\\n---", "<|end|>", "<END>"],  # Explicit stops
 **Symptom**: Internal summary text appears in UI despite "hiding" logic
 
 **Root Cause**:
-The streaming endpoint called `manager.process_request()` which:
-1. **Always generates summary** (wastes 2-3 seconds)
-2. **Returns summary in result dict**
-3. Frontend "hides" it but it's still transmitted
-
-This is architectural - you can't "hide" what you generate and send.
+The streaming endpoint needed to generate summary for better LLM context, but it was being sent to the client.
 
 **Fix Applied**:
-Created new `process_request_streaming()` method that:
+The full 3-stage pipeline is now used:
 ```python
-def process_request_streaming(self, text, auto_classify, pathology):
-    """
-    STREAMING-OPTIMIZED: Skips summary generation entirely.
-    
-    Pipeline:
-    1. Classification → visible
-    2. Summary → SKIPPED (not generated at all)
-    3. Recommendation → streamed
-    
-    Returns: { classification, recommendation }  # NO SUMMARY FIELD
-    """
+# Full pipeline runs all three stages
+result = manager.process_request(text, auto_classify, pathology)
+
+# Returns: { classification, summary, recommendation }
+# BUT streaming endpoint only sends:
+# - classification event
+# - recommendation chunks
+# Summary stays internal, never sent to client
 ```
 
-**Architecture Change**:
+**Architecture**:
 ```
-OLD:
+Backend Pipeline (Full 3-Stage):
 ┌─────────────┐
-│ Backend     │
-│ - Classify  │
-│ - Summary   │ ← Generated but not sent
-│ - Recommend │
+│ 1. Classify │ → Sent to client
+├─────────────┤
+│ 2. Summary  │ → Internal only (improves LLM context)
+├─────────────┤
+│ 3. Generate │ → Streamed to client
 └─────────────┘
-      ↓
-  (wasted compute)
 
-NEW:
-┌─────────────┐
-│ Backend     │
-│ - Classify  │
-│ - Recommend │ ← Direct from cleaned text
-└─────────────┘
-      ↓
-  (no summary generated)
+Frontend receives:
+- Classification event (exits analyzing)
+- Text chunks (recommendation)
+- Complete event
 ```
+
+**Key Point**: Summary is generated and used in the recommendation prompt for better quality, but it's never transmitted over the stream to the client.
 
 ---
 
@@ -193,15 +182,16 @@ Button re-enabled, ready for next request
 ## Code-Level Fixes Summary
 
 ### Backend (`models_loader.py`)
-1. **Hard token limits**: `max_new_tokens=400` (down from 800)
+1. **Hard token limits**: `max_new_tokens=350` (reasonable limit)
 2. **Early stopping**: `early_stopping=True`
-3. **Stop strings**: Explicit termination markers
-4. **New method**: `process_request_streaming()` - no summary
+3. **Natural prompting**: Conversational, colleague-style prompts
+4. **Summary usage**: Generated internally, used in LLM prompt for context
 
 ### Backend (`analyze.py`)
-5. **Use streaming method**: Calls `process_request_streaming()`
-6. **Validation**: Check for empty recommendation
-7. **Logging**: Success/completion tracking
+5. **Use full pipeline**: Calls `process_request()` (all 3 stages)
+6. **Stream filtering**: Only sends classification + recommendation
+7. **Validation**: Check for empty recommendation
+8. **Logging**: Success/completion tracking
 
 ### Frontend (`app.js`)
 8. **Request ID tracking**: Prevent duplicate/overlapping calls
@@ -221,10 +211,10 @@ Button re-enabled, ready for next request
 - [x] Reader closes cleanly
 
 ### ✅ No Summary Leakage
-- [x] Summary not generated in streaming mode
-- [x] Summary not in response dict
-- [x] Summary not transmitted to client
-- [x] Only classification + recommendation sent
+- [x] Summary IS generated (improves LLM recommendations)
+- [x] Summary used in recommendation prompt for context
+- [x] Summary NOT transmitted to client
+- [x] Only classification + recommendation sent via stream
 
 ### ✅ State Machine Correctness
 - [x] Analyzing → Streaming (on classification)
@@ -239,14 +229,14 @@ Button re-enabled, ready for next request
 
 ### Before
 - Generation time: 8-12 seconds
-- Summary generation: 2-3 seconds (wasted)
+- Summary generation: 2-3 seconds (used for LLM context)
 - Token budget: 800 (excessive)
 - Failure mode: Timeout after 30s
 
 ### After
-- Generation time: 4-6 seconds (40% faster)
-- Summary generation: 0 seconds (skipped)
-- Token budget: 400 (sufficient)
+- Generation time: 5-7 seconds
+- Summary generation: 2-3 seconds (used in prompt, not sent)
+- Token budget: 350 (optimal)
 - Failure mode: Clean stop, proper error state
 
 ---

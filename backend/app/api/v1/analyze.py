@@ -191,9 +191,10 @@ async def analyze_case_stream(data: CaseRequest):
     async def event_generator():
         """Generate Server-Sent Events for streaming response."""
         try:
-            # CRITICAL FIX: Use streaming-optimized pipeline that SKIPS summary
+            # Run FULL 3-stage pipeline (classification + summary + recommendation)
+            # Summary is generated internally for better LLM context, but NOT sent to client
             result = await asyncio.to_thread(
-                manager.process_request_streaming,  # NEW method - no summary generation
+                manager.process_request,
                 text=data.text,
                 auto_classify=data.auto_classify,
                 pathology=data.pathology
@@ -209,6 +210,9 @@ async def analyze_case_stream(data: CaseRequest):
                 "classification": result["classification"]
             }
             yield f"data: {json.dumps(classification_data)}\n\n"
+            
+            # NOTE: Summary is in result["summary"] but we DO NOT send it to client
+            # It was used internally to generate better recommendations
             
             # Small UX delay
             await asyncio.sleep(0.05)
@@ -239,7 +243,7 @@ async def analyze_case_stream(data: CaseRequest):
             yield f"data: {json.dumps(completion_data)}\n\n"
             
             # CRITICAL: Ensure stream terminates cleanly
-            print("✅ Stream completed successfully")
+            print("✅ Stream completed successfully (summary generated but not sent)")
             
         except Exception as e:
             error_data = {
