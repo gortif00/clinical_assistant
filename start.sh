@@ -9,19 +9,30 @@ echo "🧠 Clinical Mental Health Assistant - Quick Start"
 echo "=================================================="
 echo ""
 
+# Load environment variables from .env file
+if [ -f "$(dirname "$0")/.env" ]; then
+    echo "📋 Loading environment variables from .env..."
+    export $(grep -v '^#' "$(dirname "$0")/.env" | xargs)
+    echo "✅ Environment variables loaded"
+    echo ""
+fi
+
 # Check if HF_TOKEN is set
 if [ -z "$HF_TOKEN" ]; then
     echo "⚠️  Warning: HF_TOKEN environment variable not set"
     echo "   Llama model may fail to load without it."
     echo ""
-    echo "   To set it:"
-    echo "   export HF_TOKEN='your_huggingface_token'"
+    echo "   To set it, add to .env file:"
+    echo "   HF_TOKEN=your_huggingface_token"
     echo ""
     read -p "   Continue anyway? (y/n) " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         exit 1
     fi
+else
+    echo "✅ HF_TOKEN loaded successfully"
+    echo ""
 fi
 
 # Navigate to backend directory
