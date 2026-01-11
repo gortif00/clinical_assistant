@@ -507,17 +507,34 @@ class ModelManager:
             )
             print("⚠️ Using fallback recommendation")
         else:
-            # Simplified prompt WITHOUT summary dependency
+            # ChatGPT-style structured prompt for streaming
             system_prompt = (
-                "You are an experienced clinical psychologist. Provide clear, conversational "
-                "guidance. Avoid rigid formatting. Write like you're explaining to a colleague."
+                "You are an experienced clinical psychologist providing comprehensive, well-structured clinical guidance. "
+                "Create professional reports with clear section titles and subtitles that adapt to each specific case. "
+                "Use a clean, readable format with proper headings similar to ChatGPT's response style. "
+                "Write in professional but accessible language."
             )
             
             user_prompt = (
-                f"Patient presents with {detected_pathology}. "
-                f"Observations: {cleaned_text[:500]}\n\n"  # Use truncated original text
-                "What's your clinical recommendation? Focus on therapeutic approaches "
-                "and practical interventions."
+                f"Based on the patient observations below, create a structured treatment recommendation.\n\n"
+                f"Diagnosed Condition: {detected_pathology}\n"
+                f"Clinical Observations: {cleaned_text[:600]}\n\n"
+                f"Provide a comprehensive treatment plan with:\n\n"
+                f"# Treatment Plan: {detected_pathology}\n\n"
+                "## Clinical Overview\n"
+                "Brief overview of this patient's presentation based on observations (2 paragraphs)\n\n"
+                "## Treatment Approach\n\n"
+                "### Pharmacological Interventions\n"
+                f"Appropriate medications for {detected_pathology} (1 paragraph)\n\n"
+                "### Psychotherapy\n"
+                "Evidence-based therapy approaches:\n"
+                "- **[Therapy 1]**: How it helps\n"
+                "- **[Therapy 2]**: Application\n\n"
+                "### Self-Management\n"
+                "Practical strategies for daily management\n\n"
+                "## Follow-up Plan\n"
+                "Monitoring and next steps (1 paragraph)\n\n"
+                "Use markdown headers (# ## ###) and adapt all content to this specific case."
             )
             
             messages = [
@@ -541,15 +558,16 @@ class ModelManager:
             with torch.no_grad():
                 output_tokens = self.gen_model.generate(
                     **input_ids,
-                    max_new_tokens=350,  # HARD LIMIT
-                    min_new_tokens=100,
+                    max_new_tokens=600,  # Increased for structured streaming output
+                    min_new_tokens=200,
                     do_sample=True,
-                    temperature=0.7,
-                    top_p=0.9,
-                    repetition_penalty=1.15,
+                    temperature=0.75,
+                    top_p=0.92,
+                    repetition_penalty=1.2,
+                    no_repeat_ngram_size=4,
                     eos_token_id=self.gen_tokenizer.eos_token_id,
                     pad_token_id=self.gen_tokenizer.pad_token_id,
-                    early_stopping=True,  # CRITICAL: Stop at EOS
+                    early_stopping=True,
                 )
             
             final_recommendation = self.gen_tokenizer.decode(
@@ -734,44 +752,56 @@ class ModelManager:
             # ========================================
             # CREATE PROMPT FOR LLAMA (uses summary for better context)
             # ========================================
-            # Publication-ready clinical report formatting
+            # ChatGPT-style structured clinical report formatting
             system_prompt = (
-                "You are a senior clinical psychologist preparing a formal clinical case report for publication or peer review. "
-                "Use professional medical/psychological language with an academic tone (formal, objective, precise). "
-                "Structure your report with clear section titles, horizontal line separators (⸻), and numbered lists where appropriate. "
-                "Maintain evidence-based language throughout. No emojis, no casual language, no markdown asterisks."
+                "You are an experienced clinical psychologist providing comprehensive, well-structured clinical guidance. "
+                "Create professional reports with clear section titles and subtitles that adapt to each specific case. "
+                "Use a clean, readable format with proper headings (Title, Subtitle, Body) similar to ChatGPT's response style. "
+                "Write in professional but accessible language. Be specific to the patient's presentation."
             )
             
-            # User prompt requests publication-ready structured report
+            # User prompt requests adaptive structured report
             user_prompt = (
-                f"Prepare a publication-ready clinical case summary for {detected_pathology} using the following format:\n\n"
-                f"Clinical Assessment Data:\n{diagnosis_summary}\n\n"
-                "Required Format:\n\n"
-                "Clinical Case Summary: [Disorder Name]\n\n"
-                "⸻\n\n"
-                "Case Overview\n\n"
-                "Provide a comprehensive overview of the diagnosis, clinical features, and relevant history (2-3 paragraphs). "
-                "Use formal clinical language. Mention key diagnostic criteria and distinguishing features.\n\n"
-                "⸻\n\n"
-                "Diagnostic Considerations\n\n"
-                "Briefly discuss the diagnostic implications, course, and need for intervention (1-2 paragraphs).\n\n"
-                "⸻\n\n"
-                "Therapeutic Rationale\n\n"
-                "Explain the evidence-based reasoning for a multimodal treatment approach (1-2 paragraphs).\n\n"
-                "⸻\n\n"
-                "Proposed Treatment Plan\n\n"
-                "Use a numbered list (1., 2., 3., etc.) with the following components:\n"
-                "1. Mood-Stabilizing Pharmacotherapy (or appropriate medication class)\n"
-                f"2. Psychotherapeutic Interventions (list 2-3 evidence-based therapies for {detected_pathology})\n"
-                "3. Emotional Regulation Strategies\n"
-                "4. Exercise and Physical Activity\n"
-                "5. Social Support Network Management\n\n"
-                "For each item, provide 1-2 sentences of clinical justification.\n\n"
-                "⸻\n\n"
-                "Evidence Base\n\n"
-                "Conclude with a brief statement affirming the empirical support and clinical best practices (1-2 sentences).\n\n"
-                "Important: Use horizontal line separators (⸻) between major sections. "
-                "Write in formal academic style. Use line breaks for readability. No markdown formatting."
+                f"Based on the clinical assessment data below, create a comprehensive treatment recommendation report.\n\n"
+                f"Clinical Assessment:\n{diagnosis_summary}\n\n"
+                f"Diagnosed Condition: {detected_pathology}\n\n"
+                "Create a structured clinical report with the following format:\n\n"
+                f"# Clinical Case Analysis: {detected_pathology}\n\n"
+                "## 1. Clinical Overview\n"
+                "Provide a personalized overview of this specific patient's presentation, highlighting the key clinical features "
+                "observed in their assessment. Reference specific symptoms or patterns from the clinical data. (2-3 paragraphs)\n\n"
+                "## 2. Diagnostic Considerations\n"
+                "Discuss the diagnostic implications specific to this patient's case, including severity indicators, "
+                "comorbidity risks, and the urgency of intervention based on their presentation. (2 paragraphs)\n\n"
+                "## 3. Treatment Approach Rationale\n"
+                "Explain why a multimodal treatment approach is recommended for THIS patient's specific presentation, "
+                "considering their symptoms, severity, and clinical profile. (2 paragraphs)\n\n"
+                "## 4. Comprehensive Treatment Plan\n\n"
+                f"### 4.1 Pharmacological Interventions\n"
+                f"Recommend specific medication classes appropriate for {detected_pathology} with this patient's presentation. "
+                "Mention typical medications, dosing considerations, and monitoring needs. (1-2 paragraphs)\n\n"
+                "### 4.2 Psychotherapeutic Interventions\n"
+                f"List 2-3 evidence-based therapy approaches specifically suited for {detected_pathology}, explaining how each "
+                "addresses this patient's symptoms:\n"
+                "- **[Therapy Name]**: Brief explanation of how it helps this case\n"
+                "- **[Therapy Name]**: Brief explanation of application\n"
+                "- **[Therapy Name]**: Brief explanation of benefits\n\n"
+                "### 4.3 Self-Management Strategies\n"
+                "Provide practical, patient-specific recommendations:\n"
+                "- **Emotional Regulation**: Techniques suited to this patient's needs\n"
+                "- **Lifestyle Modifications**: Exercise, sleep hygiene, routine structure\n"
+                "- **Social Support**: Building and maintaining supportive relationships\n\n"
+                "## 5. Monitoring and Follow-up\n"
+                "Outline a follow-up plan with specific monitoring points, expected timeline for improvement, "
+                "and signs that would warrant adjustment of the treatment plan. (1-2 paragraphs)\n\n"
+                "## 6. Evidence Base\n"
+                "Brief statement on the empirical support for this treatment approach in similar cases. (1 paragraph)\n\n"
+                "IMPORTANT: \n"
+                "- Use markdown-style headers (# for title, ## for main sections, ### for subsections)\n"
+                "- Adapt ALL content to be specific to this patient's case and clinical data\n"
+                "- Use professional but accessible language\n"
+                "- Include specific details from the clinical assessment throughout\n"
+                "- Make recommendations practical and actionable"
             )
             
             messages = [
@@ -792,17 +822,17 @@ class ModelManager:
                 max_length=2048
             ).to(self.gen_model.device)
             
-            # Generation parameters with EXPLICIT STOP CONDITIONS
+            # Generation parameters optimized for structured ChatGPT-style output
             with torch.no_grad():
                 output_tokens = self.gen_model.generate(
                     **input_ids,
-                    max_new_tokens=400,  # Increased for structured report
-                    min_new_tokens=150,  # Minimum for quality report
+                    max_new_tokens=800,  # Increased for comprehensive structured report
+                    min_new_tokens=300,  # Minimum for quality structured content
                     do_sample=True,
-                    temperature=0.7,  # Controlled temperature for consistency
-                    top_p=0.9,
-                    repetition_penalty=1.15,
-                    no_repeat_ngram_size=3,
+                    temperature=0.75,  # Slightly higher for more natural, varied language
+                    top_p=0.92,  # Broader sampling for better section variation
+                    repetition_penalty=1.2,  # Higher penalty to avoid repetitive structure
+                    no_repeat_ngram_size=4,  # Prevent repetitive phrases
                     eos_token_id=self.gen_tokenizer.eos_token_id,
                     pad_token_id=self.gen_tokenizer.pad_token_id,
                     early_stopping=True,

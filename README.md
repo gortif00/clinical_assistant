@@ -146,9 +146,9 @@ The system follows a layered architecture with production-grade middleware:
 
 ## 🚀 Quick Start
 
-### 🐳 Docker Deployment (Recommended)
+### ⚡ Fastest Start (Recommended)
 
-**Perfect for production or if you want zero setup hassle.**
+**One-command deployment using automated setup and start scripts.**
 
 ```bash
 # 1. Clone the repository
@@ -158,8 +158,56 @@ cd clinical_assistant
 # 2. Create .env file with your HuggingFace token (required for Llama)
 echo "HF_TOKEN=your_huggingface_token_here" > .env
 
-# 3. Launch the application
-docker-compose up --build
+# 3. Run automated setup (creates venv, installs deps, validates config)
+make setup
+# OR: ./scripts/setup.sh
+
+# 4. Start the application
+make run
+# OR: ./scripts/start.sh
+
+# 5. Access the application
+# Open your browser at: http://localhost:8000
+```
+
+**The setup script automatically:**
+- ✅ Checks Python version (3.11+ required)
+- ✅ Creates and activates a virtual environment
+- ✅ Installs all production and development dependencies
+- ✅ Validates your HuggingFace token
+- ✅ Checks for model directories
+- ✅ Sets up configuration files
+
+**Stopping the application:**
+```bash
+# Press Ctrl+C in the terminal
+```
+
+**Useful commands:**
+```bash
+make help          # Show all available commands
+make test          # Run test suite
+make lint          # Check code quality
+make clean         # Clean build artifacts
+```
+
+---
+
+### 🐳 Docker Deployment (Production)
+
+**Perfect for production environments or if you want containerized deployment.**
+
+```bash
+# 1. Clone and navigate
+git clone https://github.com/gortif00/clinical_assistant.git
+cd clinical_assistant
+
+# 2. Create .env file with your HuggingFace token
+echo "HF_TOKEN=your_huggingface_token_here" > .env
+
+# 3. Build and run with docker-compose
+make docker-run
+# OR: docker-compose -f deployment/docker-compose.yml up --build
 
 # 4. Access the application
 # Open your browser at: http://localhost:8000
@@ -173,14 +221,15 @@ docker-compose up --build
 
 **Stopping the application:**
 ```bash
-docker-compose down
+make docker-stop
+# OR: docker-compose -f deployment/docker-compose.yml down
 ```
 
 ---
 
-### 💻 Local Development
+### 💻 Manual Development Setup
 
-**For development or if you prefer running without Docker.**
+**For development, debugging, or if you prefer manual control.**
 
 #### Prerequisites
 
@@ -190,7 +239,7 @@ docker-compose down
 - 8GB+ RAM (16GB recommended)
 - GPU optional but recommended
 
-#### Step-by-Step Setup
+#### Step-by-Step Manual Setup
 
 ```bash
 # 1. Clone and navigate
@@ -198,17 +247,20 @@ git clone https://github.com/gortif00/clinical_assistant.git
 cd clinical_assistant
 
 # 2. Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv backend/venv
+source backend/venv/bin/activate  # On Windows: backend\venv\Scripts\activate
 
 # 3. Install dependencies
 cd backend
+pip install --upgrade pip
 pip install -r requirements.txt
 
-# 4. Set HuggingFace token
-export HF_TOKEN="your_huggingface_token_here"
+# 4. Set HuggingFace token in .env file (in project root)
+cd ..
+echo "HF_TOKEN=your_huggingface_token_here" > .env
 
-# 5. Run the application
+# 5. Run the application from backend directory
+cd backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # 6. Access the application
@@ -219,11 +271,13 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - Use `--reload` flag for auto-restart on code changes
 - Check logs for model loading progress
 - First request takes 30-60s (loads all models)
-- Subsequent requests are 5-10s (uses cached models)
+- Subsequent requests are 3-5s (uses cached models)
+- Use `make` commands for common tasks: `make test`, `make lint`, etc.
+- The automated scripts handle all environment setup
 
 ---
 
-## 🚀 Production Features
+## � Production-Ready Features
 
 This application is **production-ready** with enterprise-grade features:
 
@@ -438,66 +492,79 @@ Import `k8s/grafana-dashboard.json` to visualize:
 
 ---
 
-## 📁 Project Structure
+## 📁 Project Organization
 
 ```
 clinical_assistant/
-├── backend/
+├── 📁 backend/                     # FastAPI application
 │   ├── app/
-│   │   ├── api/v1/
-│   │   │   ├── analyze.py          # Analysis endpoints
-│   │   │   └── health.py           # Health checks ✨
-│   │   ├── core/
-│   │   │   ├── config.py           # Configuration
-│   │   │   └── logging_config.py   # Structured logging ✨
-│   │   ├── middleware/             # Production middleware ✨
-│   │   │   ├── rate_limiter.py
-│   │   │   ├── auth.py
-│   │   │   └── metrics.py
-│   │   ├── ml/
-│   │   │   ├── models_loader.py    # Model Manager (optimized)
-│   │   │   └── pipeline.py
-│   │   ├── utils/
-│   │   │   └── text_cleaning.py
-│   │   ├── main.py                 # FastAPI app (production-ready)
-│   │   └── __init__.py
-│   ├── models/                     # Trained models
-│   ├── requirements.txt
-│   └── requirements-dev.txt
-├── frontend/
-│   ├── index.html
-│   ├── images/favicon.svg          # Custom favicon ✨
-│   ├── css/styles.css
-│   └── js/app.js
-├── tests/                          # Automated tests ✨
-│   ├── conftest.py
-│   ├── unit/
-│   └── integration/
-├── k8s/                            # Kubernetes manifests ✨
-│   ├── deployment.yaml
-│   ├── ingress.yaml
-│   └── ...
-├── .github/workflows/              # CI/CD pipeline ✨
-│   └── ci-cd.yml
-├── docs/                           # Documentation ✨
-│   ├── DEPLOYMENT.md              # Production deployment guide
-│   └── CITATIONS.md               # Academic citations
-├── docker-compose.yml
-├── Dockerfile
-├── pytest.ini                      # Test config ✨
-├── test_endpoints.sh               # Test script ✨
-├── run_server.py
-├── .env.example                    # Environment template ✨
-└── README.md
+│   │   ├── api/v1/                 # API endpoints
+│   │   ├── core/                   # Configuration & logging
+│   │   ├── middleware/             # Auth, rate limiting, metrics
+│   │   ├── ml/                     # ML pipeline & models
+│   │   └── utils/                  # Utilities
+│   ├── models/                     # Trained AI models (3GB, excluded from git)
+│   ├── logs/                       # Application logs (auto-generated)
+│   ├── requirements.txt            # Production dependencies
+│   └── requirements-dev.txt        # Development dependencies
+│
+├── 📁 frontend/                    # Modern ChatGPT-style UI
+│   ├── index.html                  # Main interface
+│   ├── images/                     # Assets
+│   ├── css/styles.css              # Styling (dark mode support)
+│   └── js/app.js                   # Client logic
+│
+├── 📁 tests/                       # Test suite (25+ tests, 70% coverage)
+│   ├── conftest.py                 # Pytest fixtures
+│   ├── unit/                       # Unit tests
+│   └── integration/                # Integration tests
+│
+├── 📁 scripts/                     # Automation scripts
+│   ├── setup.sh                    # Initial development setup
+│   ├── start.sh                    # Quick start server
+│   ├── test.sh                     # Run test suite
+│   ├── lint.sh                     # Code quality checks
+│   ├── docker-build.sh             # Build Docker image
+│   └── k8s-deploy.sh               # Kubernetes deployment
+│
+├── 📁 deployment/                  # Deployment configurations
+│   ├── Dockerfile                  # Multi-stage Docker build
+│   ├── docker-compose.yml          # Local Docker orchestration
+│   └── k8s/                        # Kubernetes manifests
+│       ├── deployment.yaml         # Application deployment
+│       ├── configmap.yaml          # Configuration
+│       ├── secrets.yaml.example    # Secrets template
+│       ├── ingress.yaml            # Load balancer
+│       └── redis-deployment.yaml   # Redis for rate limiting
+│
+├── 📁 config/                      # Configuration files
+│   └── pytest.ini                  # Test configuration
+│
+├── 📁 docs/                        # Documentation
+│   ├── DEPLOYMENT.md               # Production deployment guide
+│   ├── CITATIONS.md                # Academic citations
+│   └── BUG_FIX_P0.md              # Known issues
+│
+├── 📁 .github/                     # GitHub configurations
+│   └── workflows/                  # CI/CD pipelines (future)
+│
+├── 📄 Makefile                     # Build automation
+├── 📄 README.md                    # This file
+├── 📄 LICENSE                      # MIT License
+├── 📄 .env.example                 # Environment template
+└── 📄 .gitignore                   # Git exclusions
 
-✨ = New production features
+**Quick Access:**
+- Run `make help` to see all available commands
+- See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for detailed file descriptions
 ```
 
-**Key Files:**
-- `backend/app/main.py`: FastAPI app that serves both frontend and API
-- `backend/app/ml/models_loader.py`: Optimized model manager with singleton pattern
-- `frontend/`: Static frontend files (HTML/CSS/JS)
-- `docker-compose.yml`: Single-command deployment configuration
+**Key Features:**
+- ✅ **Professional Organization**: Clear separation of concerns (backend, frontend, deployment, scripts)
+- ✅ **Makefile Automation**: Common tasks accessible via `make <command>`
+- ✅ **Comprehensive Scripts**: Automated setup, testing, linting, deployment
+- ✅ **Multiple Deployment Options**: Local, Docker, Kubernetes with dedicated configs
+- ✅ **Production Ready**: Complete CI/CD structure, monitoring, logging
 
 ---
 
@@ -595,54 +662,100 @@ pytest tests/integration/       # Integration tests only
 
 ---
 
-## 📦 Deployment
+## � Deployment Options
 
-### Local Production
+### Quick Deployment (Easiest)
+
+**Using the automated setup scripts and Makefile:**
+
+```bash
+# 1. Set your HuggingFace token in .env
+echo "HF_TOKEN=your_token_here" > .env
+
+# 2. Run setup and start
+make setup && make run
+# OR: ./scripts/setup.sh && ./scripts/start.sh
+
+# 3. Open http://localhost:8000 in your browser
+```
+
+The Makefile provides convenient commands. Run `make help` for all options.
+
+---
+
+### Local Production Deployment
 
 ```bash
 # 1. Setup environment
-cp .env.example .env
-# Edit .env with your values
+make setup
 
-# 2. Install dependencies
-pip install -r backend/requirements.txt
+# 2. Start the server
+make run
 
-# 3. Run server
-python run_server.py
+# OR manually:
+cd backend
+source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Docker
+---
+
+### Docker Deployment
 
 ```bash
-docker-compose up --build
+# Build and run
+make docker-build && make docker-run
+
+# OR manually:
+docker-compose -f deployment/docker-compose.yml up --build
 ```
 
-### Kubernetes
+---
 
+### Kubernetes Deployment
+
+**Complete deployment guide**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+
+**Quick start:**
 ```bash
-# See complete guide in docs/DEPLOYMENT.md
-
-# Quick start:
+# 1. Create namespace & secrets
 kubectl create namespace production
-kubectl apply -f k8s/secrets.yaml
-kubectl apply -f k8s/
+kubectl apply -f deployment/k8s/secrets.yaml
+
+# 2. Deploy stack
+kubectl apply -f deployment/k8s/configmap.yaml
+kubectl apply -f deployment/k8s/redis-deployment.yaml
+kubectl apply -f deployment/k8s/deployment.yaml
+kubectl apply -f deployment/k8s/ingress.yaml
+
+# 3. Verify deployment
+kubectl get pods -n production
+kubectl logs -n production deployment/clinical-assistant -f
+
+# OR use automated script:
+make k8s-deploy
+# OR: ./scripts/k8s-deploy.sh
 ```
 
-**Production Checklist:**
-- [ ] Change JWT secrets (`.env`)
-- [ ] Configure CORS origins
-- [ ] Enable HTTPS/TLS
-- [ ] Setup Redis for rate limiting
-- [ ] Configure monitoring
-- [ ] Setup CI/CD secrets in GitHub
+**Production Deployment Checklist:**
+- [ ] Set HF_TOKEN in `.env` or k8s secrets
+- [ ] Change JWT secrets for security
+- [ ] Configure CORS origins for your domain
+- [ ] Enable HTTPS/TLS (cert-manager configured)
+- [ ] Setup Redis for distributed rate limiting
+- [ ] Configure Prometheus + Grafana monitoring
+- [ ] Setup GitHub Actions secrets (HF_TOKEN, KUBECONFIG, etc.)
+- [ ] Configure log aggregation (optional: ELK, Loki)
+- [ ] Setup backup strategy for persistent data
+- [ ] Configure alerts in Grafana
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for complete deployment guide.
 
 ---
 
-## 📊 Monitoring
+## 📊 Monitoring & Health Checks
 
-### Health Checks
+### Health Endpoints
 
 ```bash
 # Basic health
@@ -656,7 +769,7 @@ curl http://localhost:8000/api/v1/health/ready
 curl http://localhost:8000/api/v1/health/live
 ```
 
-### Metrics
+### Prometheus Metrics
 
 Prometheus metrics exposed on `/metrics`:
 
@@ -682,63 +795,7 @@ Import `k8s/grafana-dashboard.json` for:
 
 ---
 
-## 📦 Deployment
-
-### Local Production
-
-```bash
-# 1. Setup environment
-cp .env.example .env
-# Edit .env with your HF_TOKEN and other values
-
-# 2. Install dependencies
-pip install -r backend/requirements.txt
-
-# 3. Run server
-python run_server.py
-```
-
-### Docker
-
-```bash
-docker-compose up --build
-```
-
-### Kubernetes
-
-**Complete deployment guide**: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
-
-**Quick start:**
-```bash
-# 1. Create namespace & secrets
-kubectl create namespace production
-kubectl apply -f k8s/secrets.yaml
-
-# 2. Deploy stack
-kubectl apply -f k8s/configmap.yaml
-kubectl apply -f k8s/redis-deployment.yaml
-kubectl apply -f k8s/deployment.yaml
-kubectl apply -f k8s/ingress.yaml
-
-# 3. Verify deployment
-kubectl get pods -n production
-kubectl logs -n production deployment/clinical-assistant -f
-```
-
-**Production Deployment Checklist:**
-- [ ] Change JWT secrets in `.env` or k8s secrets
-- [ ] Configure CORS origins for your domain
-- [ ] Enable HTTPS/TLS (cert-manager configured)
-- [ ] Setup Redis for distributed rate limiting
-- [ ] Configure Prometheus + Grafana monitoring
-- [ ] Setup GitHub Actions secrets (HF_TOKEN, KUBECONFIG, etc.)
-- [ ] Configure log aggregation (optional: ELK, Loki)
-- [ ] Setup backup strategy for persistent data
-- [ ] Configure alerts in Grafana
-
----
-
-## 🗺️ Roadmap
+## 🗺️ Development Roadmap
 
 ### Implemented ✅
 - [x] Core ML pipeline (BERT classification, T5 summarization, Llama generation)
@@ -788,12 +845,16 @@ HF_TOKEN=your_token_here
 # LLAMA_MODEL_CHECKPOINT=meta-llama/Llama-3.2-1B-Instruct
 ```
 
-### Getting a HuggingFace Token
+### Getting Your HuggingFace Token
 
 1. Go to https://huggingface.co/settings/tokens
 2. Create a new token (read access is sufficient)
 3. Accept Llama model license at https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct
-4. Add token to `.env` file
+4. Add token to `.env` file in project root:
+   ```bash
+   echo "HF_TOKEN=your_token_here" > .env
+   ```
+5. Run `./start.sh` - it will automatically validate your token
 
 ---
 
@@ -809,6 +870,7 @@ HF_TOKEN=your_token_here
 # Check if models exist
 ls -lh backend/models/
 
+# The start.sh script will warn you if models are missing
 # If missing, you need to train models first
 # See README.md for model setup and training instructions
 ```
@@ -818,7 +880,8 @@ ls -lh backend/models/
 
 **Expected behavior**:
 - First request: 30-60s (loads BERT + T5 + Llama)
-- Second request: 5-10s (uses cached models)
+- Subsequent requests: 3-5s (uses cached models)
+- The start.sh script displays this information when starting
 
 #### "Frontend not showing device" or CORS errors
 **Cause**: Backend might not be running or accessible.
@@ -867,7 +930,7 @@ This README consolidates all essential information. For specific deployment scen
 
 ---
 
-## 📄 Citations & License
+## 📄 License & Citations
 
 ### How to Cite This Project
 

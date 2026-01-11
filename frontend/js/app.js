@@ -272,15 +272,34 @@ function formatMarkdown(text) {
   // Escape HTML first to prevent XSS
   let formatted = escapeHtml(text);
   
-  // Convert ***text*** or **text** to <strong>text</strong>
-  formatted = formatted.replace(/\*\*\*(.+?)\*\*\*/g, '<strong>$1</strong>');
+  // Parse markdown headers (must be at start of line)
+  // ### Level 3 headers (h4 in output for proper hierarchy)
+  formatted = formatted.replace(/^### (.+)$/gm, '<h4 class="report-h4">$1</h4>');
+  // ## Level 2 headers (h3 in output)
+  formatted = formatted.replace(/^## (.+)$/gm, '<h3 class="report-h3">$1</h3>');
+  // # Level 1 headers (h2 in output, since h1 is page title)
+  formatted = formatted.replace(/^# (.+)$/gm, '<h2 class="report-h2">$1</h2>');
+  
+  // Convert **text** to <strong>text</strong>
   formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   
-  // Convert *text* to <em>text</em>
-  formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // Convert *text* to <em>text</em> (but not if it's part of **)
+  formatted = formatted.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
   
-  // Preserve line breaks
-  formatted = formatted.replace(/\n/g, '<br>');
+  // Parse bullet lists (- item or * item)
+  formatted = formatted.replace(/^[•\-\*] (.+)$/gm, '<li class="report-li">$1</li>');
+  
+  // Wrap consecutive <li> items in <ul>
+  formatted = formatted.replace(/(<li class="report-li">.*?<\/li>(\n|$))+/g, function(match) {
+    return '<ul class="report-ul">' + match.replace(/<br>/g, '') + '</ul>';
+  });
+  
+  // Convert line breaks to <br> (but not immediately after headers or inside lists)
+  formatted = formatted.replace(/\n(?!<[hul])/g, '<br>');
+  
+  // Clean up extra <br> tags around headers and lists
+  formatted = formatted.replace(/<br>(<[hul])/g, '$1');
+  formatted = formatted.replace(/(<\/[hul][^>]*>)<br>/g, '$1');
   
   return formatted;
 }
@@ -324,12 +343,12 @@ function formatClassification(classification) {
   return html;
 }
 
-// Format recommendation
+// Format recommendation with markdown support
 function formatRecommendation(recommendation) {
   return `
     <div class="recommendation-result">
       <h3>💊 Treatment Recommendations</h3>
-      <div class="recommendation-text">${escapeHtml(recommendation).replace(/\n/g, '<br>')}</div>
+      <div class="recommendation-text clinical-report">${formatMarkdown(recommendation)}</div>
       <div class="disclaimer-box">
         <strong>⚠️ Professional Disclaimer:</strong><br>
         This AI-assisted analysis is intended as a clinical decision support tool. Final diagnosis and treatment planning should incorporate comprehensive clinical assessment, patient history, and professional clinical judgment. This system is designed to augment, not replace, professional expertise.
@@ -607,7 +626,7 @@ function loadHistoryItem(id) {
   clearChat();
   addUserMessage(item.fullData.text);
   
-  // Redisplay results (without clinical summary)
+  // Redisplay results with markdown support
   const { classification, recommendation } = item.fullData;
   
   // Create a message similar to the streaming result
@@ -625,7 +644,7 @@ function loadHistoryItem(id) {
           </div>
         ` : ''}
       </div>
-      <div class="response-text">${escapeHtml(recommendation)}</div>
+      <div class="response-text clinical-report">${formatMarkdown(recommendation)}</div>
     </div>
   `;
   chatMessages.appendChild(messageDiv);
