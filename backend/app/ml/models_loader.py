@@ -775,6 +775,45 @@ class ModelManager:
                 "Please consult with a licensed mental health professional for personalized treatment."
             )
             print("⚠️ Using fallback recommendation")
+        elif detected_pathology == "no_significant_pathology":
+            # ========================================
+            # HEALTHY PATIENT RESPONSE
+            # ========================================
+            # When no pathology is detected, provide positive wellness guidance
+            print("   ↳ Healthy patient - generating wellness response...")
+            
+            final_recommendation = """## Wellness Assessment: No Significant Pathology Detected
+
+### Clinical Impression
+Based on the provided information, no significant mental health pathology is indicated. The patient appears to be functioning well with good emotional balance and healthy coping mechanisms.
+
+### Wellness Recommendations
+
+**Maintain Current Healthy Habits:**
+- Continue regular physical exercise and outdoor activities
+- Preserve strong social connections and support systems
+- Maintain consistent sleep schedule (7-8 hours per night)
+- Practice mindfulness or relaxation techniques as needed
+
+**Preventive Mental Health:**
+- Regular self-check-ins to monitor mood and stress levels
+- Maintain work-life balance to prevent burnout
+- Continue engaging in meaningful hobbies and activities
+- Stay connected with supportive friends and family
+
+**When to Seek Help:**
+- If experiencing persistent changes in mood, sleep, or appetite
+- If stress becomes overwhelming or difficult to manage
+- If experiencing anxiety or worry that interferes with daily life
+- During major life transitions or stressful events
+
+### Follow-up
+No immediate follow-up required. Consider annual wellness check-ins or as needed during life stressors.
+
+---
+*This assessment indicates positive mental health. Continue current healthy lifestyle practices. If concerns arise in the future, don't hesitate to seek professional support.*"""
+            
+            print("✅ Healthy wellness response generated")
         else:
             # ========================================
             # TEMPLATE-BASED GENERATION STRATEGY

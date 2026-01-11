@@ -346,6 +346,26 @@ body {
   border-color: var(--border-medium);
 }
 
+.example-card.example-healthy {
+  background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+  border-color: #28a745;
+}
+
+.example-card.example-healthy:hover {
+  background: linear-gradient(135deg, #c3e6cb 0%, #b1dfbb 100%);
+  border-color: #218838;
+}
+
+body.dark-mode .example-card.example-healthy {
+  background: linear-gradient(135deg, #155724 0%, #1e7e34 100%);
+  border-color: #28a745;
+}
+
+body.dark-mode .example-card.example-healthy:hover {
+  background: linear-gradient(135deg, #1e7e34 0%, #28a745 100%);
+  border-color: #34ce57;
+}
+
 .example-title {
   font-size: 14px;
   font-weight: 600;
@@ -445,6 +465,30 @@ body.dark-mode .classification-result {
   background: var(--accent-primary);
   border-radius: 3px;
   transition: width 0.5s ease;
+}
+
+/* Healthy/positive result styling */
+.healthy-result {
+  color: #28a745 !important;
+}
+
+.confidence-fill.healthy-result {
+  background: linear-gradient(90deg, #28a745 0%, #34ce57 100%);
+}
+
+.healthy-note {
+  color: #28a745;
+  font-style: italic;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+body.dark-mode .healthy-result {
+  color: #34ce57 !important;
+}
+
+body.dark-mode .healthy-note {
+  color: #34ce57;
 }
 
 /* Summary and Recommendation Sections */

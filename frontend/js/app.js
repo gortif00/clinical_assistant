@@ -126,6 +126,10 @@ function clearChat() {
           <div class="example-title">Bipolar case</div>
           <div class="example-desc">Assess mood fluctuation patterns</div>
         </button>
+        <button class="example-card example-healthy" data-example="healthy">
+          <div class="example-title">✨ Healthy case</div>
+          <div class="example-desc">Evaluate a person with positive wellbeing</div>
+        </button>
       </div>
     </div>
   `;
@@ -527,16 +531,24 @@ async function analyzeCase() {
                 const classContainer = document.getElementById('classificationContainer');
                 if (classContainer && classificationData) {
                   classContainer.style.display = 'block';
-                  let classHTML = `<h4>🔍 ${escapeHtml(classificationData.pathology)}</h4>`;
+                  
+                  // Check if healthy patient
+                  const isHealthy = classificationData.pathology === 'no_significant_pathology';
+                  const displayName = isHealthy ? '✨ Healthy / No Significant Pathology' : classificationData.pathology;
+                  const healthyClass = isHealthy ? 'healthy-result' : '';
+                  
+                  let classHTML = `<h4 class="${healthyClass}">${isHealthy ? '' : '🔍 '}${escapeHtml(displayName)}</h4>`;
                   
                   if (classificationData.confidence) {
                     const confidencePercent = (classificationData.confidence * 100).toFixed(1);
                     classHTML += `
                       <p>Confidence: ${confidencePercent}%</p>
                       <div class="confidence-bar">
-                        <div class="confidence-fill" style="width: ${confidencePercent}%"></div>
+                        <div class="confidence-fill ${healthyClass}" style="width: ${confidencePercent}%"></div>
                       </div>
                     `;
+                  } else if (isHealthy) {
+                    classHTML += `<p class="healthy-note">No mental health concerns detected based on the provided information.</p>`;
                   }
                   classContainer.innerHTML = classHTML;
                 }
@@ -675,6 +687,11 @@ function loadHistoryItem(id) {
   // Redisplay results with markdown support
   const { classification, recommendation } = item.fullData;
   
+  // Check if healthy patient
+  const isHealthy = classification.pathology === 'no_significant_pathology';
+  const displayName = isHealthy ? '✨ Healthy / No Significant Pathology' : classification.pathology;
+  const healthyClass = isHealthy ? 'healthy-result' : '';
+  
   // Create a message similar to the streaming result
   const messageDiv = document.createElement("div");
   messageDiv.className = "message bot-message";
@@ -682,13 +699,13 @@ function loadHistoryItem(id) {
     <div class="message-avatar">🤖</div>
     <div class="message-content">
       <div class="classification-result">
-        <h4>🔍 ${escapeHtml(classification.pathology)}</h4>
+        <h4 class="${healthyClass}">${isHealthy ? '' : '🔍 '}${escapeHtml(displayName)}</h4>
         ${classification.confidence ? `
           <p>Confidence: ${(classification.confidence * 100).toFixed(1)}%</p>
           <div class="confidence-bar">
-            <div class="confidence-fill" style="width: ${(classification.confidence * 100).toFixed(1)}%"></div>
+            <div class="confidence-fill ${healthyClass}" style="width: ${(classification.confidence * 100).toFixed(1)}%"></div>
           </div>
-        ` : ''}
+        ` : (isHealthy ? '<p class="healthy-note">No mental health concerns detected.</p>' : '')}
       </div>
       <div class="response-text clinical-report">${formatMarkdown(recommendation)}</div>
     </div>
