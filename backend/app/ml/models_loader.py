@@ -776,121 +776,88 @@ class ModelManager:
             print("⚠️ Using fallback recommendation")
         else:
             # ========================================
-            # CREATE PROMPT FOR LLAMA (uses summary for better context)
+            # TEMPLATE-BASED GENERATION STRATEGY
             # ========================================
-            # Very simple prompt - the 1B model works better with minimal instructions
-            system_prompt = "You are a clinical psychologist writing a treatment plan."
+            # The 1B model struggles with long structured output.
+            # Instead, we generate short focused responses for each section
+            # and combine them into a well-formatted template.
             
-            # Direct, minimal user prompt - explicitly start fresh numbering
-            user_prompt = f"""Patient diagnosis: {detected_pathology}
-
-Write a NEW treatment plan starting from section 1:
-
-## 1. Medications
-List 2-3 medications for {detected_pathology} with brief explanations.
-
-## 2. Therapy
-List 2-3 therapy approaches and how each helps.
-
-## 3. Lifestyle
-Recommend exercise, sleep habits, and stress management.
-
-## 4. Follow-up
-Describe the monitoring schedule.
-
-Begin your response with "## 1. Medications":"""
+            def generate_section(section_prompt, max_tokens=150):
+                """Generate a short, focused response for one section."""
+                messages = [
+                    {"role": "system", "content": "You are a clinical psychologist. Give brief, direct answers."},
+                    {"role": "user", "content": section_prompt},
+                ]
+                prompt = self.gen_tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
+                inputs = self.gen_tokenizer(
+                    prompt, return_tensors="pt", truncation=True, max_length=1024
+                ).to(self.gen_model.device)
+                
+                with torch.no_grad():
+                    output = self.gen_model.generate(
+                        **inputs,
+                        max_new_tokens=max_tokens,
+                        min_new_tokens=30,
+                        do_sample=True,
+                        temperature=0.4,
+                        top_p=0.9,
+                        repetition_penalty=1.1,
+                        eos_token_id=self.gen_tokenizer.eos_token_id,
+                        pad_token_id=self.gen_tokenizer.pad_token_id,
+                    )
+                
+                result = self.gen_tokenizer.decode(
+                    output[0][inputs["input_ids"].shape[1]:],
+                    skip_special_tokens=True
+                ).strip()
+                
+                # Clean up the response
+                result = re.sub(r'^(Sure|Here|Of course|I\'d)[^.]*\.\s*', '', result, flags=re.IGNORECASE)
+                result = re.sub(r'(Let me know|Please let me know|If you)[^.]*$', '', result, flags=re.IGNORECASE)
+                return result.strip()
             
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ]
-            
-            prompt = self.gen_tokenizer.apply_chat_template(
-                messages, 
-                tokenize=False, 
-                add_generation_prompt=True
+            # Generate each section separately
+            print("   ↳ Generating medications section...")
+            meds = generate_section(
+                f"List 3 medications for {detected_pathology}. For each, give name and one sentence about how it helps. Be concise."
             )
             
-            input_ids = self.gen_tokenizer(
-                prompt, 
-                return_tensors="pt", 
-                truncation=True,
-                max_length=2048
-            ).to(self.gen_model.device)
+            print("   ↳ Generating therapy section...")
+            therapy = generate_section(
+                f"List 2 therapy types for {detected_pathology}. For each, give name and one sentence about how it helps. Be concise."
+            )
             
-            # Generation parameters optimized for clear, coherent output
-            with torch.no_grad():
-                output_tokens = self.gen_model.generate(
-                    **input_ids,
-                    max_new_tokens=512,  # Reduced for more focused output
-                    min_new_tokens=200,  # Ensure substantial content
-                    do_sample=True,
-                    temperature=0.5,  # Lower for more coherent, focused output
-                    top_p=0.85,  # More conservative sampling for quality
-                    repetition_penalty=1.15,  # Moderate penalty to reduce repetition
-                    no_repeat_ngram_size=3,  # Prevent 3-word phrase repetition
-                    eos_token_id=self.gen_tokenizer.eos_token_id,
-                    pad_token_id=self.gen_tokenizer.pad_token_id,
-                )
+            print("   ↳ Generating lifestyle section...")
+            lifestyle = generate_section(
+                f"List 3 lifestyle recommendations for someone with {detected_pathology}: exercise, sleep, and stress management. One sentence each."
+            )
             
-            # Decode generated tokens to text
-            # Only decode the newly generated tokens (skip input prompt)
-            response = self.gen_tokenizer.decode(
-                output_tokens[0][input_ids["input_ids"].shape[1]:],  # Skip input tokens
-                skip_special_tokens=True  # Remove <eos>, <pad>, etc.
-            ).strip()
+            print("   ↳ Generating follow-up section...")
+            followup = generate_section(
+                f"Describe a follow-up schedule for {detected_pathology} treatment. How often should the patient be seen? What should be monitored? 2-3 sentences."
+            )
             
-            # ========================================
-            # CLEAN UP AND FORMAT GENERATED TEXT
-            # ========================================
-            # Remove "Recommendation: " prefix if model added it
-            match = re.search(r"Recommendation:\s*", response, re.IGNORECASE)
-            response = response[match.end():].strip() if match else response
+            # Combine into a structured template
+            response = f"""## Treatment Plan for {detected_pathology}
+
+### Medications
+{meds}
+
+### Therapy Approaches  
+{therapy}
+
+### Lifestyle Recommendations
+{lifestyle}
+
+### Follow-up Plan
+{followup}
+
+---
+*This treatment plan should be reviewed and personalized by a licensed healthcare provider.*"""
             
-            # Fix malformed headers: "5. Medications #" -> "## Medications"
-            response = re.sub(r'\d+\.\s*([A-Za-z\s]+)\s*#', r'## \1', response)
-            
-            # Fix standalone # symbols
-            response = re.sub(r'^\s*#\s*$', '', response, flags=re.MULTILINE)
-            
-            # Fix headers without proper spacing: "##Medications" -> "## Medications"
-            response = re.sub(r'^(#{1,3})([A-Za-z])', r'\1 \2', response, flags=re.MULTILINE)
-            
-            # Clean up escape characters
-            response = re.sub(r'\\+([^\s])', r'\1', response)
-            response = re.sub(r'\\{2,}', '', response)
-            response = response.replace('\\n', '\n')
-            
-            # Add proper line breaks before headers if missing
-            response = re.sub(r'([.!?])\s*(##)', r'\1\n\n\2', response)
-            
-            # Normalize multiple spaces (but preserve newlines)
-            response = re.sub(r'[ \t]+', ' ', response)
-            response = re.sub(r'\n{3,}', '\n\n', response)
-            
-            # Ensure headers are on their own lines
-            response = re.sub(r'([^\n])(## )', r'\1\n\n\2', response)
-            response = re.sub(r'(## [^\n]+)([^\n])', r'\1\n\2', response)
-            
-            # Add bullet points to items that look like lists
-            lines = response.split('\n')
-            formatted_lines = []
-            for line in lines:
-                line = line.strip()
-                if line and not line.startswith('#') and not line.startswith('-') and not line.startswith('*'):
-                    # Check if line looks like a medication or therapy name followed by description
-                    if re.match(r'^[A-Z][a-z]+(\s+[A-Z]?[a-z]+)*:', line):
-                        line = '- **' + line.replace(':', ':** ', 1)
-                formatted_lines.append(line)
-            response = '\n'.join(formatted_lines)
-            
-            # Final cleanup
-            response = response.strip()
-            
-            # If output seems truncated (ends mid-sentence), add notice
-            if response and response[-1] not in '.!?':
-                response += "\n\n*[Note: Consult with healthcare provider for complete guidance.]*"
-            
+            # The response is already well-structured from the template
             final_recommendation = response
             
             print("✅ Recommendation generated")
