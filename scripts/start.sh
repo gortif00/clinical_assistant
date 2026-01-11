@@ -52,7 +52,7 @@ else
 fi
 
 # Navigate to backend directory
-cd "$(dirname "$0")/backend"
+cd "$(dirname "$0")/../backend"
 
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then

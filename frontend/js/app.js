@@ -15,7 +15,7 @@ const State = {
 
 let currentState = State.IDLE;
 let currentRequestId = null;  // CRITICAL: Track active request
-const ANALYZING_TIMEOUT_MS = 60000; // 60 second failsafe (professional reports take longer)
+const ANALYZING_TIMEOUT_MS = 180000; // 180 second timeout (3 minutes for first-time model loading + generation)
 
 // DOM Elements
 const chatMessages = document.getElementById("chatMessages");
