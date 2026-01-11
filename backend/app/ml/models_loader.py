@@ -778,56 +778,30 @@ class ModelManager:
             # ========================================
             # CREATE PROMPT FOR LLAMA (uses summary for better context)
             # ========================================
-            # ChatGPT-style structured clinical report formatting
+            # Simplified, focused prompt for better quality with 1B model
             system_prompt = (
-                "You are an experienced clinical psychologist providing comprehensive, well-structured clinical guidance. "
-                "Create professional reports with clear section titles and subtitles that adapt to each specific case. "
-                "Use a clean, readable format with proper headings (Title, Subtitle, Body) similar to ChatGPT's response style. "
-                "Write in professional but accessible language. Be specific to the patient's presentation."
+                "You are a clinical psychologist. Write clear, professional treatment recommendations. "
+                "Use proper markdown headers (##, ###). Be specific and concise."
             )
             
-            # User prompt requests adaptive structured report
+            # Shorter, clearer user prompt
             user_prompt = (
-                f"Based on the clinical assessment data below, create a comprehensive treatment recommendation report.\n\n"
-                f"Clinical Assessment:\n{diagnosis_summary}\n\n"
-                f"Diagnosed Condition: {detected_pathology}\n\n"
-                "Create a structured clinical report with the following format:\n\n"
-                f"# Clinical Case Analysis: {detected_pathology}\n\n"
-                "## 1. Clinical Overview\n"
-                "Provide a personalized overview of this specific patient's presentation, highlighting the key clinical features "
-                "observed in their assessment. Reference specific symptoms or patterns from the clinical data. (2-3 paragraphs)\n\n"
-                "## 2. Diagnostic Considerations\n"
-                "Discuss the diagnostic implications specific to this patient's case, including severity indicators, "
-                "comorbidity risks, and the urgency of intervention based on their presentation. (2 paragraphs)\n\n"
-                "## 3. Treatment Approach Rationale\n"
-                "Explain why a multimodal treatment approach is recommended for THIS patient's specific presentation, "
-                "considering their symptoms, severity, and clinical profile. (2 paragraphs)\n\n"
-                "## 4. Comprehensive Treatment Plan\n\n"
-                f"### 4.1 Pharmacological Interventions\n"
-                f"Recommend specific medication classes appropriate for {detected_pathology} with this patient's presentation. "
-                "Mention typical medications, dosing considerations, and monitoring needs. (1-2 paragraphs)\n\n"
-                "### 4.2 Psychotherapeutic Interventions\n"
-                f"List 2-3 evidence-based therapy approaches specifically suited for {detected_pathology}, explaining how each "
-                "addresses this patient's symptoms:\n"
-                "- **[Therapy Name]**: Brief explanation of how it helps this case\n"
-                "- **[Therapy Name]**: Brief explanation of application\n"
-                "- **[Therapy Name]**: Brief explanation of benefits\n\n"
-                "### 4.3 Self-Management Strategies\n"
-                "Provide practical, patient-specific recommendations:\n"
-                "- **Emotional Regulation**: Techniques suited to this patient's needs\n"
-                "- **Lifestyle Modifications**: Exercise, sleep hygiene, routine structure\n"
-                "- **Social Support**: Building and maintaining supportive relationships\n\n"
-                "## 5. Monitoring and Follow-up\n"
-                "Outline a follow-up plan with specific monitoring points, expected timeline for improvement, "
-                "and signs that would warrant adjustment of the treatment plan. (1-2 paragraphs)\n\n"
-                "## 6. Evidence Base\n"
-                "Brief statement on the empirical support for this treatment approach in similar cases. (1 paragraph)\n\n"
-                "IMPORTANT: \n"
-                "- Use markdown-style headers (# for title, ## for main sections, ### for subsections)\n"
-                "- Adapt ALL content to be specific to this patient's case and clinical data\n"
-                "- Use professional but accessible language\n"
-                "- Include specific details from the clinical assessment throughout\n"
-                "- Make recommendations practical and actionable"
+                f"Patient Assessment: {diagnosis_summary}\n\n"
+                f"Diagnosis: {detected_pathology}\n\n"
+                f"Write a treatment plan with these sections:\n\n"
+                f"## Treatment Plan for {detected_pathology}\n\n"
+                "### 1. Medication Options\n"
+                f"List 2-3 medication types for {detected_pathology} with brief explanations.\n\n"
+                "### 2. Therapy Approaches\n"
+                "List 2-3 therapy types:\n"
+                "- **Therapy name**: How it helps\n\n"
+                "### 3. Lifestyle Recommendations\n"
+                "- Daily exercise and sleep\n"
+                "- Stress management techniques\n"
+                "- Social support\n\n"
+                "### 4. Follow-up Plan\n"
+                "Monitoring schedule and progress markers.\n\n"
+                "Be specific to this patient. Use clear language. Keep each section focused."
             )
             
             messages = [
@@ -848,20 +822,19 @@ class ModelManager:
                 max_length=2048
             ).to(self.gen_model.device)
             
-            # Generation parameters optimized for structured ChatGPT-style output
+            # Generation parameters optimized for clear, coherent output
             with torch.no_grad():
                 output_tokens = self.gen_model.generate(
                     **input_ids,
-                    max_new_tokens=800,  # Increased for comprehensive structured report
-                    min_new_tokens=300,  # Minimum for quality structured content
+                    max_new_tokens=512,  # Reduced for more focused output
+                    min_new_tokens=200,  # Ensure substantial content
                     do_sample=True,
-                    temperature=0.75,  # Slightly higher for more natural, varied language
-                    top_p=0.92,  # Broader sampling for better section variation
-                    repetition_penalty=1.2,  # Higher penalty to avoid repetitive structure
-                    no_repeat_ngram_size=4,  # Prevent repetitive phrases
+                    temperature=0.5,  # Lower for more coherent, focused output
+                    top_p=0.85,  # More conservative sampling for quality
+                    repetition_penalty=1.15,  # Moderate penalty to reduce repetition
+                    no_repeat_ngram_size=3,  # Prevent 3-word phrase repetition
                     eos_token_id=self.gen_tokenizer.eos_token_id,
                     pad_token_id=self.gen_tokenizer.pad_token_id,
-                    early_stopping=True,
                 )
             
             # Decode generated tokens to text
@@ -876,7 +849,19 @@ class ModelManager:
             # ========================================
             # Remove "Recommendation: " prefix if model added it
             match = re.search(r"Recommendation:\s*", response, re.IGNORECASE)
-            final_recommendation = response[match.end():].strip() if match else response
+            response = response[match.end():].strip() if match else response
+            
+            # Clean up common LLM artifacts
+            response = re.sub(r'\\+([^\s])', r'\1', response)  # Remove escaped characters like \(, \)
+            response = re.sub(r'\\{2,}', '', response)  # Remove multiple backslashes
+            response = re.sub(r'\s+', ' ', response)  # Normalize whitespace
+            response = response.replace('\\n', '\n')  # Fix newlines
+            
+            # If output seems truncated (ends mid-sentence), add notice
+            if response and not response[-1] in '.!?':
+                response += "\n\n*[Note: Treatment plan continues. Consult with healthcare provider for complete guidance.]*"
+            
+            final_recommendation = response
             
             print("✅ Recommendation generated")
         
