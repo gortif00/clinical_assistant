@@ -244,7 +244,7 @@ function addStreamingMessage() {
     <div class="message-avatar">🤖</div>
     <div class="message-content">
       <div id="classificationContainer" class="classification-result" style="display:none;"></div>
-      <div id="responseContainer" class="response-text"></div>
+      <div id="responseContainer" class="response-text clinical-report"></div>
     </div>
   `;
   chatMessages.appendChild(messageDiv);
@@ -271,6 +271,9 @@ function formatMarkdown(text) {
   
   // Escape HTML first to prevent XSS
   let formatted = escapeHtml(text);
+  
+  // Ensure headers have proper line breaks before them for regex matching
+  formatted = formatted.replace(/([^\n])(\n?)(#{1,3} )/g, '$1\n\n$3');
   
   // Parse markdown headers (must be at start of line)
   // ### Level 3 headers (h4 in output for proper hierarchy)
