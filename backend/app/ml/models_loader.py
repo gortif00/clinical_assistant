@@ -699,7 +699,8 @@ class ModelManager:
             all_probs = {LABEL_MAP[i]: float(p) for i, p in enumerate(probs)}
             
             # Confidence threshold check: If confidence is low, patient may be healthy
-            CONFIDENCE_THRESHOLD = 0.55  # Minimum confidence to diagnose pathology
+            # Lowered from 0.55 to 0.35 to reduce false "no_significant_pathology"
+            CONFIDENCE_THRESHOLD = 0.35  # Minimum confidence to diagnose pathology
             if confidence < CONFIDENCE_THRESHOLD:
                 original_pathology = detected_pathology
                 detected_pathology = "no_significant_pathology"
@@ -785,7 +786,7 @@ class ModelManager:
             def generate_section(section_prompt, max_tokens=150):
                 """Generate a short, focused response for one section."""
                 messages = [
-                    {"role": "system", "content": "You are a clinical psychologist. Give brief, direct answers."},
+                    {"role": "system", "content": "You are a clinical psychologist. Give brief, direct answers. Do not use markdown or hashtags."},
                     {"role": "user", "content": section_prompt},
                 ]
                 prompt = self.gen_tokenizer.apply_chat_template(
@@ -816,6 +817,11 @@ class ModelManager:
                 # Clean up the response
                 result = re.sub(r'^(Sure|Here|Of course|I\'d)[^.]*\.\s*', '', result, flags=re.IGNORECASE)
                 result = re.sub(r'(Let me know|Please let me know|If you)[^.]*$', '', result, flags=re.IGNORECASE)
+                # Remove any standalone # or ## symbols
+                result = re.sub(r'^\s*#{1,3}\s*$', '', result, flags=re.MULTILINE)
+                result = re.sub(r'#{1,3}\s+', '', result)
+                # Clean up extra whitespace
+                result = re.sub(r'\n{2,}', '\n', result)
                 return result.strip()
             
             # Generate each section separately

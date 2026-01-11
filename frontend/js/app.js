@@ -272,32 +272,46 @@ function formatMarkdown(text) {
   // Escape HTML first to prevent XSS
   let formatted = escapeHtml(text);
   
-  // Pre-process: Fix common malformed patterns from LLM
-  // "5. Medications #" -> "## Medications"
-  formatted = formatted.replace(/\d+\.\s*([A-Za-z\s]+)\s*#/g, '## $1');
+  // ========================================
+  // PRE-PROCESS: Clean up LLM artifacts
+  // ========================================
   
-  // Remove standalone # symbols
-  formatted = formatted.replace(/^\s*#\s*$/gm, '');
+  // Remove ALL standalone # symbols (with or without spaces)
+  formatted = formatted.replace(/^\s*#{1,3}\s*$/gm, '');
+  formatted = formatted.replace(/\s+#\s+/g, ' ');
   
-  // Add newlines before headers if missing
+  // Fix "5. Medications #" -> just "Medications"
+  formatted = formatted.replace(/\d+\.\s*([A-Za-z\s]+)\s*#/g, '$1');
+  
+  // Remove inline # not at start of line
+  formatted = formatted.replace(/([^#\n])#\s*/g, '$1');
+  
+  // ========================================
+  // PARSE MARKDOWN HEADERS
+  // ========================================
+  
+  // Ensure headers have proper line breaks before them
   formatted = formatted.replace(/([.!?])\s*(##)/g, '$1\n\n$2');
-  
-  // Ensure headers have proper line breaks before them for regex matching
   formatted = formatted.replace(/([^\n])(\n?)(#{1,3} )/g, '$1\n\n$3');
   
   // Parse markdown headers (must be at start of line)
-  // ### Level 3 headers (h4 in output for proper hierarchy)
   formatted = formatted.replace(/^### (.+)$/gm, '<h4 class="report-h4">$1</h4>');
-  // ## Level 2 headers (h3 in output)
   formatted = formatted.replace(/^## (.+)$/gm, '<h3 class="report-h3">$1</h3>');
-  // # Level 1 headers (h2 in output, since h1 is page title)
   formatted = formatted.replace(/^# (.+)$/gm, '<h2 class="report-h2">$1</h2>');
+  
+  // ========================================
+  // PARSE INLINE FORMATTING
+  // ========================================
   
   // Convert **text** to <strong>text</strong>
   formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   
   // Convert *text* to <em>text</em> (but not if it's part of **)
   formatted = formatted.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
+  
+  // ========================================
+  // PARSE LISTS
+  // ========================================
   
   // Parse bullet lists (- item or * item at start of line)
   formatted = formatted.replace(/^[•\-\*]\s+(.+)$/gm, '<li class="report-li">$1</li>');
@@ -307,17 +321,26 @@ function formatMarkdown(text) {
     return '<ul class="report-ul">' + match.replace(/<br>/g, '').trim() + '</ul>';
   });
   
+  // ========================================
+  // CONVERT LINE BREAKS
+  // ========================================
+  
   // Convert double line breaks to paragraph breaks
   formatted = formatted.replace(/\n\n+/g, '</p><p>');
   
   // Convert single line breaks to <br>
   formatted = formatted.replace(/\n/g, '<br>');
   
+  // ========================================
+  // FINAL CLEANUP
+  // ========================================
+  
   // Clean up empty paragraphs and extra breaks
   formatted = formatted.replace(/<p>\s*<\/p>/g, '');
   formatted = formatted.replace(/<br>\s*(<[hul])/g, '$1');
   formatted = formatted.replace(/(<\/[hul][^>]*>)\s*<br>/g, '$1');
   formatted = formatted.replace(/<br>\s*<br>/g, '<br>');
+  formatted = formatted.replace(/<br>$/g, '');  // Remove trailing <br>
   
   // Wrap in paragraph if not already wrapped
   if (!formatted.startsWith('<')) {
