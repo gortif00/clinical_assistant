@@ -9,11 +9,27 @@ echo "🧠 Clinical Mental Health Assistant - Quick Start"
 echo "=================================================="
 echo ""
 
-# Load environment variables from .env file
+
+# Load environment variables from .env file (scripts/ or project root)
+ENV_LOADED=false
 if [ -f "$(dirname "$0")/.env" ]; then
-    echo "📋 Loading environment variables from .env..."
-    export $(grep -v '^#' "$(dirname "$0")/.env" | xargs)
+    echo "📋 Loading environment variables from scripts/.env..."
+    set -a
+    source "$(dirname "$0")/.env"
+    set +a
+    ENV_LOADED=true
+elif [ -f "$(dirname "$0")/../.env" ]; then
+    echo "📋 Loading environment variables from project root .env..."
+    set -a
+    source "$(dirname "$0")/../.env"
+    set +a
+    ENV_LOADED=true
+fi
+if [ "$ENV_LOADED" = true ]; then
     echo "✅ Environment variables loaded"
+    echo ""
+else
+    echo "⚠️  No .env file found in scripts/ or project root."
     echo ""
 fi
 
@@ -22,7 +38,7 @@ if [ -z "$HF_TOKEN" ]; then
     echo "⚠️  Warning: HF_TOKEN environment variable not set"
     echo "   Llama model may fail to load without it."
     echo ""
-    echo "   To set it, add to .env file:"
+    echo "   To set it, add to your .env file:"
     echo "   HF_TOKEN=your_huggingface_token"
     echo ""
     read -p "   Continue anyway? (y/n) " -n 1 -r
@@ -31,7 +47,7 @@ if [ -z "$HF_TOKEN" ]; then
         exit 1
     fi
 else
-    echo "✅ HF_TOKEN loaded successfully"
+    echo "✅ HF_TOKEN loaded successfully: ${HF_TOKEN:0:8}********"
     echo ""
 fi
 
@@ -94,4 +110,5 @@ echo "=================================================="
 echo ""
 
 # Run uvicorn (without --reload to avoid WatchFiles warnings)
+export HF_TOKEN  # Ensure HF_TOKEN is available to backend
 uvicorn app.main:app --host 0.0.0.0 --port 8000
