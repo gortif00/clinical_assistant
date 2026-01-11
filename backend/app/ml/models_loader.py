@@ -778,31 +778,27 @@ class ModelManager:
             # ========================================
             # CREATE PROMPT FOR LLAMA (uses summary for better context)
             # ========================================
-            # Simplified, focused prompt for better quality with 1B model
-            system_prompt = (
-                "You are a clinical psychologist. Write clear, professional treatment recommendations. "
-                "Use proper markdown headers (##, ###). Be specific and concise."
-            )
+            # Very simple prompt - the 1B model works better with minimal instructions
+            system_prompt = "You are a clinical psychologist writing a treatment plan."
             
-            # Shorter, clearer user prompt
-            user_prompt = (
-                f"Patient Assessment: {diagnosis_summary}\n\n"
-                f"Diagnosis: {detected_pathology}\n\n"
-                f"Write a treatment plan with these sections:\n\n"
-                f"## Treatment Plan for {detected_pathology}\n\n"
-                "### 1. Medication Options\n"
-                f"List 2-3 medication types for {detected_pathology} with brief explanations.\n\n"
-                "### 2. Therapy Approaches\n"
-                "List 2-3 therapy types:\n"
-                "- **Therapy name**: How it helps\n\n"
-                "### 3. Lifestyle Recommendations\n"
-                "- Daily exercise and sleep\n"
-                "- Stress management techniques\n"
-                "- Social support\n\n"
-                "### 4. Follow-up Plan\n"
-                "Monitoring schedule and progress markers.\n\n"
-                "Be specific to this patient. Use clear language. Keep each section focused."
-            )
+            # Direct, minimal user prompt - let the model fill in naturally
+            user_prompt = f"""Patient has {detected_pathology}.
+
+Write a treatment recommendation with these 4 sections:
+
+## Medications
+Recommend 2-3 medications for {detected_pathology}. Explain each briefly.
+
+## Therapy
+Recommend 2-3 therapy types. Explain how each helps.
+
+## Lifestyle Changes
+List 3-4 lifestyle recommendations: exercise, sleep, stress management.
+
+## Follow-up
+Describe the monitoring plan.
+
+Start writing now:"""
             
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -845,21 +841,55 @@ class ModelManager:
             ).strip()
             
             # ========================================
-            # CLEAN UP GENERATED TEXT
+            # CLEAN UP AND FORMAT GENERATED TEXT
             # ========================================
             # Remove "Recommendation: " prefix if model added it
             match = re.search(r"Recommendation:\s*", response, re.IGNORECASE)
             response = response[match.end():].strip() if match else response
             
-            # Clean up common LLM artifacts
-            response = re.sub(r'\\+([^\s])', r'\1', response)  # Remove escaped characters like \(, \)
-            response = re.sub(r'\\{2,}', '', response)  # Remove multiple backslashes
-            response = re.sub(r'\s+', ' ', response)  # Normalize whitespace
-            response = response.replace('\\n', '\n')  # Fix newlines
+            # Fix malformed headers: "5. Medications #" -> "## Medications"
+            response = re.sub(r'\d+\.\s*([A-Za-z\s]+)\s*#', r'## \1', response)
+            
+            # Fix standalone # symbols
+            response = re.sub(r'^\s*#\s*$', '', response, flags=re.MULTILINE)
+            
+            # Fix headers without proper spacing: "##Medications" -> "## Medications"
+            response = re.sub(r'^(#{1,3})([A-Za-z])', r'\1 \2', response, flags=re.MULTILINE)
+            
+            # Clean up escape characters
+            response = re.sub(r'\\+([^\s])', r'\1', response)
+            response = re.sub(r'\\{2,}', '', response)
+            response = response.replace('\\n', '\n')
+            
+            # Add proper line breaks before headers if missing
+            response = re.sub(r'([.!?])\s*(##)', r'\1\n\n\2', response)
+            
+            # Normalize multiple spaces (but preserve newlines)
+            response = re.sub(r'[ \t]+', ' ', response)
+            response = re.sub(r'\n{3,}', '\n\n', response)
+            
+            # Ensure headers are on their own lines
+            response = re.sub(r'([^\n])(## )', r'\1\n\n\2', response)
+            response = re.sub(r'(## [^\n]+)([^\n])', r'\1\n\2', response)
+            
+            # Add bullet points to items that look like lists
+            lines = response.split('\n')
+            formatted_lines = []
+            for line in lines:
+                line = line.strip()
+                if line and not line.startswith('#') and not line.startswith('-') and not line.startswith('*'):
+                    # Check if line looks like a medication or therapy name followed by description
+                    if re.match(r'^[A-Z][a-z]+(\s+[A-Z]?[a-z]+)*:', line):
+                        line = '- **' + line.replace(':', ':** ', 1)
+                formatted_lines.append(line)
+            response = '\n'.join(formatted_lines)
+            
+            # Final cleanup
+            response = response.strip()
             
             # If output seems truncated (ends mid-sentence), add notice
-            if response and not response[-1] in '.!?':
-                response += "\n\n*[Note: Treatment plan continues. Consult with healthcare provider for complete guidance.]*"
+            if response and response[-1] not in '.!?':
+                response += "\n\n*[Note: Consult with healthcare provider for complete guidance.]*"
             
             final_recommendation = response
             

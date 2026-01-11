@@ -272,6 +272,16 @@ function formatMarkdown(text) {
   // Escape HTML first to prevent XSS
   let formatted = escapeHtml(text);
   
+  // Pre-process: Fix common malformed patterns from LLM
+  // "5. Medications #" -> "## Medications"
+  formatted = formatted.replace(/\d+\.\s*([A-Za-z\s]+)\s*#/g, '## $1');
+  
+  // Remove standalone # symbols
+  formatted = formatted.replace(/^\s*#\s*$/gm, '');
+  
+  // Add newlines before headers if missing
+  formatted = formatted.replace(/([.!?])\s*(##)/g, '$1\n\n$2');
+  
   // Ensure headers have proper line breaks before them for regex matching
   formatted = formatted.replace(/([^\n])(\n?)(#{1,3} )/g, '$1\n\n$3');
   
@@ -289,20 +299,30 @@ function formatMarkdown(text) {
   // Convert *text* to <em>text</em> (but not if it's part of **)
   formatted = formatted.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
   
-  // Parse bullet lists (- item or * item)
-  formatted = formatted.replace(/^[•\-\*] (.+)$/gm, '<li class="report-li">$1</li>');
+  // Parse bullet lists (- item or * item at start of line)
+  formatted = formatted.replace(/^[•\-\*]\s+(.+)$/gm, '<li class="report-li">$1</li>');
   
   // Wrap consecutive <li> items in <ul>
-  formatted = formatted.replace(/(<li class="report-li">.*?<\/li>(\n|$))+/g, function(match) {
-    return '<ul class="report-ul">' + match.replace(/<br>/g, '') + '</ul>';
+  formatted = formatted.replace(/(<li class="report-li">.*?<\/li>(\s*\n|\s*$))+/gs, function(match) {
+    return '<ul class="report-ul">' + match.replace(/<br>/g, '').trim() + '</ul>';
   });
   
-  // Convert line breaks to <br> (but not immediately after headers or inside lists)
-  formatted = formatted.replace(/\n(?!<[hul])/g, '<br>');
+  // Convert double line breaks to paragraph breaks
+  formatted = formatted.replace(/\n\n+/g, '</p><p>');
   
-  // Clean up extra <br> tags around headers and lists
-  formatted = formatted.replace(/<br>(<[hul])/g, '$1');
-  formatted = formatted.replace(/(<\/[hul][^>]*>)<br>/g, '$1');
+  // Convert single line breaks to <br>
+  formatted = formatted.replace(/\n/g, '<br>');
+  
+  // Clean up empty paragraphs and extra breaks
+  formatted = formatted.replace(/<p>\s*<\/p>/g, '');
+  formatted = formatted.replace(/<br>\s*(<[hul])/g, '$1');
+  formatted = formatted.replace(/(<\/[hul][^>]*>)\s*<br>/g, '$1');
+  formatted = formatted.replace(/<br>\s*<br>/g, '<br>');
+  
+  // Wrap in paragraph if not already wrapped
+  if (!formatted.startsWith('<')) {
+    formatted = '<p>' + formatted + '</p>';
+  }
   
   return formatted;
 }
