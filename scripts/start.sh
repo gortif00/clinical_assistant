@@ -66,6 +66,12 @@ fi
 echo "🔄 Activating virtual environment..."
 source venv/bin/activate
 
+# Re-export HF_TOKEN after venv activation (venv can reset env vars)
+if [ -n "$HF_TOKEN" ]; then
+    export HF_TOKEN="$HF_TOKEN"
+    echo "✅ HF_TOKEN re-exported after venv activation"
+fi
+
 # Check if dependencies are installed
 if ! python -c "import fastapi" 2>/dev/null; then
     echo "📦 Installing dependencies (this may take a few minutes)..."
@@ -109,6 +115,6 @@ echo "   Press Ctrl+C to stop the server"
 echo "=================================================="
 echo ""
 
-# Run uvicorn (without --reload to avoid WatchFiles warnings)
-export HF_TOKEN  # Ensure HF_TOKEN is available to backend
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Run uvicorn with HF_TOKEN explicitly set
+echo "🔑 Starting with HF_TOKEN: ${HF_TOKEN:0:8}********"
+HF_TOKEN="$HF_TOKEN" uvicorn app.main:app --host 0.0.0.0 --port 8000

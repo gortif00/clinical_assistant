@@ -255,6 +255,17 @@ class ModelManager:
             device = get_device()
             
             # ========================================
+            # VERIFY HF_TOKEN FOR GATED MODELS
+            # ========================================
+            if HF_TOKEN is None or HF_TOKEN == "":
+                print("⚠️  WARNING: HF_TOKEN not set!")
+                print("   Llama 3.2 is a gated model and requires authentication.")
+                print("   Set HF_TOKEN environment variable or add to .env file.")
+                print("   Attempting to load anyway (will fail if model not cached)...")
+            else:
+                print(f"✅ HF_TOKEN detected: {HF_TOKEN[:8]}...")
+            
+            # ========================================
             # 4-BIT QUANTIZATION CONFIGURATION
             # ========================================
             # Reduces memory usage by ~75% with minimal accuracy loss
@@ -383,32 +394,47 @@ class ModelManager:
         Returns:
             bool: True if all models loaded successfully, False otherwise
         """
+        import time
         print("\n" + "="*60)
         print("LOADING ALL MODELS")
         print("="*60 + "\n")
         
+        start_time = time.time()
         success = True
         
         # Load classification model (BERT)
+        print("[1/3] Loading Classification Model (BERT)...")
+        t0 = time.time()
         if not self.load_classifier():
             success = False
             print("⚠️ Classification model failed to load")
+        else:
+            print(f"   ✅ Loaded in {time.time() - t0:.1f}s\n")
         
         # Load T5 summarizer
+        print("[2/3] Loading Summarization Model (T5)...")
+        t0 = time.time()
         if not self.load_summarizer():
             success = False
             print("⚠️ T5 summarizer failed to load")
+        else:
+            print(f"   ✅ Loaded in {time.time() - t0:.1f}s\n")
         
         # Load Llama generator
+        print("[3/3] Loading Generation Model (Llama 3.2 + LoRA)...")
+        t0 = time.time()
         if not self.load_generator():
             success = False
             print("⚠️ Llama generator failed to load")
-        
-        print("\n" + "="*60)
-        if success:
-            print("✅ ALL MODELS LOADED SUCCESSFULLY")
         else:
-            print("⚠️ SOME MODELS FAILED TO LOAD")
+            print(f"   ✅ Loaded in {time.time() - t0:.1f}s\n")
+        
+        total_time = time.time() - start_time
+        print("=" * 60)
+        if success:
+            print(f"✅ ALL MODELS LOADED SUCCESSFULLY in {total_time:.1f}s")
+        else:
+            print(f"⚠️ SOME MODELS FAILED TO LOAD (took {total_time:.1f}s)")
         print("="*60 + "\n")
         
         return success

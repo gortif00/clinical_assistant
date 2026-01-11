@@ -48,10 +48,17 @@ async def lifespan(app: FastAPI):
     print("\n🚀 Starting Clinical Mental Health Assistant API...")
     print(f"📊 Logging level: {config.LOG_LEVEL}")
     print(f"🔒 Rate limiting: {'Redis' if config.USE_REDIS_RATE_LIMITING else 'In-Memory'}")
+    print(f"🔑 HuggingFace Token: {'✅ Found' if config.HF_TOKEN else '⚠️ Not set'}")
     
-    # Load all ML models (BERT, T5, Llama) using lazy loading
-    # Models are loaded into memory once and reused across requests
-    load_all_models()
+    # Load all ML models (BERT, T5, Llama) at startup
+    # This preloads models so first request is fast
+    import asyncio
+    print("\n⏳ Preloading models (this may take 30-60 seconds)...")
+    success = await asyncio.to_thread(load_all_models)
+    if success:
+        print("✅ All models preloaded successfully - ready for requests!")
+    else:
+        print("⚠️ Some models failed to preload - will load on first request")
     
     yield  # Application runs between startup and shutdown
     
