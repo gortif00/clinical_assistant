@@ -781,24 +781,24 @@ class ModelManager:
             # Very simple prompt - the 1B model works better with minimal instructions
             system_prompt = "You are a clinical psychologist writing a treatment plan."
             
-            # Direct, minimal user prompt - let the model fill in naturally
-            user_prompt = f"""Patient has {detected_pathology}.
+            # Direct, minimal user prompt - explicitly start fresh numbering
+            user_prompt = f"""Patient diagnosis: {detected_pathology}
 
-Write a treatment recommendation with these 4 sections:
+Write a NEW treatment plan starting from section 1:
 
-## Medications
-Recommend 2-3 medications for {detected_pathology}. Explain each briefly.
+## 1. Medications
+List 2-3 medications for {detected_pathology} with brief explanations.
 
-## Therapy
-Recommend 2-3 therapy types. Explain how each helps.
+## 2. Therapy
+List 2-3 therapy approaches and how each helps.
 
-## Lifestyle Changes
-List 3-4 lifestyle recommendations: exercise, sleep, stress management.
+## 3. Lifestyle
+Recommend exercise, sleep habits, and stress management.
 
-## Follow-up
-Describe the monitoring plan.
+## 4. Follow-up
+Describe the monitoring schedule.
 
-Start writing now:"""
+Begin your response with "## 1. Medications":"""
             
             messages = [
                 {"role": "system", "content": system_prompt},
